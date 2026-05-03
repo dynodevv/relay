@@ -22,6 +22,9 @@ class ModelsViewModel @Inject constructor(
     private val _fetchError = MutableStateFlow<String?>(null)
     val fetchError: StateFlow<String?> = _fetchError
 
+    private val _fetchedModels = MutableStateFlow<List<AIModel>?>(null)
+    val fetchedModels: StateFlow<List<AIModel>?> = _fetchedModels
+
     fun getModels(providerId: Long): Flow<List<AIModel>> =
         repository.getModels(providerId)
 
@@ -47,6 +50,7 @@ class ModelsViewModel @Inject constructor(
         viewModelScope.launch {
             _isFetching.value = true
             _fetchError.value = null
+            _fetchedModels.value = null
             try {
                 val provider = repository.getProvider(providerId)
                 if (provider == null) {
@@ -63,9 +67,7 @@ class ModelsViewModel @Inject constructor(
                         if (models.isEmpty()) {
                             _fetchError.value = "No models returned from API"
                         } else {
-                            models.forEach { model ->
-                                repository.addModel(model)
-                            }
+                            _fetchedModels.value = models
                         }
                     },
                     onFailure = { error ->
@@ -80,7 +82,20 @@ class ModelsViewModel @Inject constructor(
         }
     }
 
+    fun addFetchedModels(models: List<AIModel>) {
+        viewModelScope.launch {
+            models.forEach { model ->
+                repository.addModel(model)
+            }
+            _fetchedModels.value = null
+        }
+    }
+
     fun clearFetchError() {
         _fetchError.value = null
+    }
+
+    fun dismissFetchedModels() {
+        _fetchedModels.value = null
     }
 }

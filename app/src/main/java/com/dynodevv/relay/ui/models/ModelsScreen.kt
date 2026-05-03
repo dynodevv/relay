@@ -1,5 +1,6 @@
 package com.dynodevv.relay.ui.models
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -62,6 +64,7 @@ fun ModelsScreen(
     val models by viewModel.getModels(providerId).collectAsState(initial = emptyList())
     val isFetching by viewModel.isFetching.collectAsState()
     val fetchError by viewModel.fetchError.collectAsState()
+    val fetchedModels by viewModel.fetchedModels.collectAsState()
     var modelToDelete by remember { mutableStateOf<AIModel?>(null) }
     var modelToEdit by remember { mutableStateOf<AIModel?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -99,7 +102,7 @@ fun ModelsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         },
@@ -128,6 +131,16 @@ fun ModelsScreen(
 
             item { Spacer(Modifier.height(80.dp)) }
         }
+    }
+
+    fetchedModels?.let { availableModels ->
+        FetchModelsDialog(
+            models = availableModels,
+            onDismiss = { viewModel.dismissFetchedModels() },
+            onAddSelected = { selected ->
+                viewModel.addFetchedModels(selected)
+            }
+        )
     }
 
     modelToDelete?.let { model ->
@@ -161,6 +174,112 @@ fun ModelsScreen(
             }
         )
     }
+}
+
+@Composable
+private fun FetchModelsDialog(
+    models: List<AIModel>,
+    onDismiss: () -> Unit,
+    onAddSelected: (List<AIModel>) -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedIds by remember { mutableStateOf(setOf<String>()) }
+
+    val filteredModels = remember(models, searchQuery) {
+        if (searchQuery.isBlank()) models
+        else models.filter {
+            it.displayName.contains(searchQuery, ignoreCase = true) ||
+            it.id.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Models from API") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Search models") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    singleLine = true
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    text = "${selectedIds.size} selected",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(320.dp)
+                ) {
+                    items(filteredModels) { model ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedIds = if (selectedIds.contains(model.id)) {
+                                        selectedIds - model.id
+                                    } else {
+                                        selectedIds + model.id
+                                    }
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = selectedIds.contains(model.id),
+                                onCheckedChange = { checked ->
+                                    selectedIds = if (checked) {
+                                        selectedIds + model.id
+                                    } else {
+                                        selectedIds - model.id
+                                    }
+                                }
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = model.displayName,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    text = model.id,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val selected = models.filter { selectedIds.contains(it.id) }
+                    onAddSelected(selected)
+                },
+                enabled = selectedIds.isNotEmpty()
+            ) {
+                Text("Add Selected")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable
@@ -245,7 +364,7 @@ private fun ModelCard(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {

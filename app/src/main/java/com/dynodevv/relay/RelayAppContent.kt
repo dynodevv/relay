@@ -68,7 +68,6 @@ fun RelayAppContent(navController: NavHostController = rememberNavController()) 
             ChatScreen(
                 conversationId = conversationId,
                 viewModel = viewModel,
-                onNavigateToProviders = { navController.navigate(Routes.PROVIDERS) },
                 onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
                 onNavigateToChat = { id ->
                     navController.navigate(Routes.chat(id)) {
@@ -121,7 +120,10 @@ fun RelayAppContent(navController: NavHostController = rememberNavController()) 
         }
 
         composable(Routes.SETTINGS) {
-            SettingsScreen(onBack = { navController.popBackStack() })
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToProviders = { navController.navigate(Routes.PROVIDERS) }
+            )
         }
     }
 }

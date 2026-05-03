@@ -11,10 +11,13 @@ import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.MessageRole
 import com.dynodevv.relay.domain.model.Provider
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -42,18 +45,30 @@ class ChatViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState
 
+    private val _activeConversationId = MutableStateFlow(0L)
+
     init {
         viewModelScope.launch {
             chatRepository.getConversations().collectLatest { conversations ->
                 _uiState.update { it.copy(conversations = conversations) }
             }
         }
+
+        viewModelScope.launch {
+            _activeConversationId
+                .flatMapLatest { id ->
+                    if (id == 0L) flowOf(emptyList()) else messageRepository.getMessages(id)
+                }
+                .collectLatest { messages ->
+                    _uiState.update { it.copy(messages = messages) }
+                }
+        }
     }
 
     fun loadConversation(conversationId: Long) {
+        _activeConversationId.value = conversationId
         viewModelScope.launch {
             if (conversationId == 0L) {
-                // New chat - select default provider if available
                 val providers = providerRepository.getProviders().first()
                 val defaultProvider = providers.firstOrNull()
                 val defaultModel = defaultProvider?.let {
@@ -65,7 +80,8 @@ class ChatViewModel @Inject constructor(
                         conversationTitle = "New Chat",
                         messages = emptyList(),
                         currentProvider = defaultProvider,
-                        currentModelId = defaultModel?.id ?: ""
+                        currentModelId = defaultModel?.id ?: "",
+                        error = null
                     )
                 }
             } else {
@@ -77,11 +93,9 @@ class ChatViewModel @Inject constructor(
                             currentConversationId = conv.id,
                             conversationTitle = conv.title,
                             currentProvider = provider,
-                            currentModelId = conv.modelId
+                            currentModelId = conv.modelId,
+                            error = null
                         )
-                    }
-                    messageRepository.getMessages(conv.id).collectLatest { messages ->
-                        _uiState.update { it.copy(messages = messages) }
                     }
                 }
             }
@@ -110,6 +124,7 @@ class ChatViewModel @Inject constructor(
                 var conversationId = _uiState.value.currentConversationId
                 if (conversationId == 0L) {
                     conversationId = chatRepository.createConversation(provider.id, modelId)
+                    _activeConversationId.value = conversationId
                     _uiState.update { it.copy(currentConversationId = conversationId) }
                 }
 
@@ -156,6 +171,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun startNewChat() {
+        _activeConversationId.value = 0L
         _uiState.update {
             it.copy(
                 currentConversationId = 0L,
@@ -218,6 +234,21 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             val provider = providerRepository.getProvider(providerId)
             _uiState.update { it.copy(currentProvider = provider, currentModelId = modelId) }
+        }
+    }
+
+    fun renameConversation(id: Long, newTitle: String) {
+        viewModelScope.launch {
+            chatRepository.updateTitle(id, newTitle)
+        }
+    }
+
+    fun deleteConversation(id: Long) {
+        viewModelScope.launch {
+            chatRepository.deleteConversation(id)
+            if (_uiState.value.currentConversationId == id) {
+                startNewChat()
+            }
         }
     }
 }
