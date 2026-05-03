@@ -1,6 +1,7 @@
 package com.dynodevv.relay.ui.theme
 
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -9,6 +10,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.dynodevv.relay.R
 
+@OptIn(ExperimentalTextApi::class)
 val GoogleSansFlex = FontFamily(
     Font(
         R.font.googlesansflex_variable,
@@ -37,6 +39,7 @@ val GoogleSansFlex = FontFamily(
     )
 )
 
+@OptIn(ExperimentalTextApi::class)
 val GoogleSansCode = FontFamily(
     Font(
         R.font.googlesanscode_variable,
