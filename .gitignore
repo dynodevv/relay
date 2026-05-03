@@ -29,3 +29,5 @@ output.json
 # OS
 Thumbs.db
 .android-dev/
+/*.ttf
+/*.otf

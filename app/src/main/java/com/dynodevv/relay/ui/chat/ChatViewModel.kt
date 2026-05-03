@@ -11,13 +11,10 @@ import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.MessageRole
 import com.dynodevv.relay.domain.model.Provider
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -45,28 +42,15 @@ class ChatViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState
 
-    private val _activeConversationId = MutableStateFlow(0L)
-
     init {
         viewModelScope.launch {
             chatRepository.getConversations().collectLatest { conversations ->
                 _uiState.update { it.copy(conversations = conversations) }
             }
         }
-
-        viewModelScope.launch {
-            _activeConversationId
-                .flatMapLatest { id ->
-                    if (id == 0L) flowOf(emptyList()) else messageRepository.getMessages(id)
-                }
-                .collectLatest { messages ->
-                    _uiState.update { it.copy(messages = messages) }
-                }
-        }
     }
 
     fun loadConversation(conversationId: Long) {
-        _activeConversationId.value = conversationId
         viewModelScope.launch {
             if (conversationId == 0L) {
                 val providers = providerRepository.getProviders().first()
@@ -88,10 +72,12 @@ class ChatViewModel @Inject constructor(
                 val conversation = chatRepository.getConversation(conversationId)
                 conversation?.let { conv ->
                     val provider = providerRepository.getProvider(conv.providerId)
+                    val messages = messageRepository.getMessages(conv.id).first()
                     _uiState.update {
                         it.copy(
                             currentConversationId = conv.id,
                             conversationTitle = conv.title,
+                            messages = messages,
                             currentProvider = provider,
                             currentModelId = conv.modelId,
                             error = null
@@ -124,27 +110,43 @@ class ChatViewModel @Inject constructor(
                 var conversationId = _uiState.value.currentConversationId
                 if (conversationId == 0L) {
                     conversationId = chatRepository.createConversation(provider.id, modelId)
-                    _activeConversationId.value = conversationId
                     _uiState.update { it.copy(currentConversationId = conversationId) }
                 }
 
-                messageRepository.addMessage(conversationId, MessageRole.User, text)
+                val userMessageId = messageRepository.addMessage(conversationId, MessageRole.User, text)
                 chatRepository.updateTimestamp(conversationId)
 
+                // Add user message to UI immediately
+                val userMessage = Message(
+                    id = userMessageId,
+                    conversationId = conversationId,
+                    role = MessageRole.User,
+                    content = text
+                )
+                _uiState.update { it.copy(messages = it.messages + userMessage) }
+
                 // Generate title on first message
-                val messages = messageRepository.getMessages(conversationId).first()
-                if (messages.size == 1) {
+                if (_uiState.value.messages.size == 1) {
                     val title = chatService.generateTitle(text, provider, modelId)
                     chatRepository.updateTitle(conversationId, title)
                     _uiState.update { it.copy(conversationTitle = title) }
                 }
 
+                // Create assistant message in DB and UI
                 val assistantMessageId = messageRepository.addMessage(
                     conversationId,
                     MessageRole.Assistant,
                     "",
                     isStreaming = true
                 )
+                var assistantMessage = Message(
+                    id = assistantMessageId,
+                    conversationId = conversationId,
+                    role = MessageRole.Assistant,
+                    content = "",
+                    isStreaming = true
+                )
+                _uiState.update { it.copy(messages = it.messages + assistantMessage) }
 
                 val history = messageRepository.getMessages(conversationId).first()
                     .filter { !it.isError && it.id != assistantMessageId }
@@ -157,13 +159,30 @@ class ChatViewModel @Inject constructor(
                     conversationId = conversationId
                 ).collect { chunk ->
                     accumulated += chunk
+                    assistantMessage = assistantMessage.copy(content = accumulated, isStreaming = true)
+                    _uiState.update { state ->
+                        state.copy(
+                            messages = state.messages.map { msg ->
+                                if (msg.id == assistantMessageId) assistantMessage else msg
+                            }
+                        )
+                    }
+                    // Also sync to DB in background
                     messageRepository.updateMessageContent(assistantMessageId, accumulated, isStreaming = true)
                 }
 
+                // Final update
                 messageRepository.updateMessageContent(assistantMessageId, accumulated, isStreaming = false)
+                assistantMessage = assistantMessage.copy(content = accumulated, isStreaming = false)
+                _uiState.update { state ->
+                    state.copy(
+                        messages = state.messages.map { msg ->
+                            if (msg.id == assistantMessageId) assistantMessage else msg
+                        },
+                        isLoading = false
+                    )
+                }
                 chatRepository.updateTimestamp(conversationId)
-
-                _uiState.update { it.copy(isLoading = false) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
             }
@@ -171,7 +190,6 @@ class ChatViewModel @Inject constructor(
     }
 
     fun startNewChat() {
-        _activeConversationId.value = 0L
         _uiState.update {
             it.copy(
                 currentConversationId = 0L,
@@ -186,6 +204,9 @@ class ChatViewModel @Inject constructor(
     fun deleteMessage(messageId: Long) {
         viewModelScope.launch {
             messageRepository.deleteMessage(messageId)
+            _uiState.update { state ->
+                state.copy(messages = state.messages.filter { it.id != messageId })
+            }
         }
     }
 
@@ -196,7 +217,13 @@ class ChatViewModel @Inject constructor(
             val modelId = _uiState.value.currentModelId
 
             messageRepository.deleteMessage(messageId)
-            _uiState.update { it.copy(isLoading = true, error = null) }
+            _uiState.update { state ->
+                state.copy(
+                    messages = state.messages.filter { it.id != messageId },
+                    isLoading = true,
+                    error = null
+                )
+            }
 
             try {
                 val assistantMessageId = messageRepository.addMessage(
@@ -205,6 +232,14 @@ class ChatViewModel @Inject constructor(
                     "",
                     isStreaming = true
                 )
+                var assistantMessage = Message(
+                    id = assistantMessageId,
+                    conversationId = conversationId,
+                    role = MessageRole.Assistant,
+                    content = "",
+                    isStreaming = true
+                )
+                _uiState.update { it.copy(messages = it.messages + assistantMessage) }
 
                 val history = messageRepository.getMessages(conversationId).first()
                     .filter { !it.isError }
@@ -217,13 +252,28 @@ class ChatViewModel @Inject constructor(
                     conversationId = conversationId
                 ).collect { chunk ->
                     accumulated += chunk
+                    assistantMessage = assistantMessage.copy(content = accumulated, isStreaming = true)
+                    _uiState.update { state ->
+                        state.copy(
+                            messages = state.messages.map { msg ->
+                                if (msg.id == assistantMessageId) assistantMessage else msg
+                            }
+                        )
+                    }
                     messageRepository.updateMessageContent(assistantMessageId, accumulated, isStreaming = true)
                 }
 
                 messageRepository.updateMessageContent(assistantMessageId, accumulated, isStreaming = false)
+                assistantMessage = assistantMessage.copy(content = accumulated, isStreaming = false)
+                _uiState.update { state ->
+                    state.copy(
+                        messages = state.messages.map { msg ->
+                            if (msg.id == assistantMessageId) assistantMessage else msg
+                        },
+                        isLoading = false
+                    )
+                }
                 chatRepository.updateTimestamp(conversationId)
-
-                _uiState.update { it.copy(isLoading = false) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
             }
