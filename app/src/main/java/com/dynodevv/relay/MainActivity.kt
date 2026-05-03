@@ -7,17 +7,53 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
+import com.dynodevv.relay.data.repository.SettingsRepository
 import com.dynodevv.relay.ui.theme.RelayTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var settingsRepository: SettingsRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        val (initialDarkTheme, initialDynamicColors) = runBlocking {
+            val mode = settingsRepository.themeMode.first()
+            val dynamic = settingsRepository.dynamicColors.first()
+            val isDark = when (mode) {
+                "dark" -> true
+                "light" -> false
+                else -> null
+            }
+            isDark to dynamic
+        }
+
         setContent {
-            RelayTheme {
+            val themeMode by settingsRepository.themeMode.collectAsState(initial = "system")
+            val dynamicColors by settingsRepository.dynamicColors.collectAsState(initial = true)
+
+            val isDarkTheme = when (themeMode) {
+                "dark" -> true
+                "light" -> false
+                else -> null
+            }
+
+            RelayTheme(
+                darkTheme = isDarkTheme ?: initialDarkTheme ?: false,
+                dynamicColor = dynamicColors
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

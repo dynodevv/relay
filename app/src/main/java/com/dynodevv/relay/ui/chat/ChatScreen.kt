@@ -1,8 +1,6 @@
 package com.dynodevv.relay.ui.chat
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,12 +10,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
@@ -25,7 +23,6 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,11 +42,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dynodevv.relay.domain.model.Conversation
-import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.MessageRole
 import com.dynodevv.relay.ui.chat.components.MessageBubble
 import com.dynodevv.relay.ui.chat.components.MessageInput
@@ -85,7 +82,7 @@ fun ChatScreen(
 
     ModalNavigationDrawer(
         drawerState = drawerState,
-        gesturesEnabled = drawerState.isOpen,
+        gesturesEnabled = true,
         drawerContent = {
             ChatNavigationDrawer(
                 conversations = uiState.conversations,
@@ -141,8 +138,12 @@ fun ChatScreen(
                     value = uiState.inputText,
                     onValueChange = viewModel::onInputChange,
                     onSend = { viewModel.sendMessage() },
+                    onAttach = { /* TODO: image attachment */ },
                     isLoading = uiState.isLoading,
-                    modifier = Modifier.imePadding()
+                    supportsAttachments = false,
+                    modifier = Modifier
+                        .navigationBarsPadding()
+                        .imePadding()
                 )
             }
         ) { padding ->
@@ -167,7 +168,15 @@ fun ChatScreen(
                     state = listState,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .weight(1f)
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures { change, dragAmount ->
+                                change.consume()
+                                if (dragAmount > 60) {
+                                    scope.launch { drawerState.open() }
+                                }
+                            }
+                        },
                     contentPadding = PaddingValues(vertical = 8.dp),
                     reverseLayout = false
                 ) {

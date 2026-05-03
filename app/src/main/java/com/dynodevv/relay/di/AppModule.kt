@@ -69,4 +69,10 @@ object AppModule {
 
     @Provides
     fun provideAiModelDao(db: AppDatabase) = db.aiModelDao()
+
+    @Provides
+    @Singleton
+    fun provideSettingsRepository(@ApplicationContext context: Context): com.dynodevv.relay.data.repository.SettingsRepository {
+        return com.dynodevv.relay.data.repository.SettingsRepository(context)
+    }
 }

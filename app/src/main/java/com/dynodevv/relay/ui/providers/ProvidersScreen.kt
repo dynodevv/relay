@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -26,6 +27,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,6 +41,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.dynodevv.relay.domain.model.Provider
 
@@ -52,6 +57,7 @@ fun ProvidersScreen(
 ) {
     val providers by viewModel.providers.collectAsState()
     var providerToDelete by remember { mutableStateOf<Provider?>(null) }
+    var providerToEdit by remember { mutableStateOf<Provider?>(null) }
 
     Scaffold(
         topBar = {
@@ -85,7 +91,7 @@ fun ProvidersScreen(
             items(providers) { provider ->
                 ProviderCard(
                     provider = provider,
-                    onEdit = { viewModel.editProvider(provider) },
+                    onEdit = { providerToEdit = provider },
                     onDelete = { providerToDelete = provider },
                     onManageModels = { onManageModels(provider.id) }
                 )
@@ -115,6 +121,90 @@ fun ProvidersScreen(
             }
         )
     }
+
+    providerToEdit?.let { provider ->
+        EditProviderDialog(
+            provider = provider,
+            onDismiss = { providerToEdit = null },
+            onSave = { updated ->
+                viewModel.editProvider(updated)
+                providerToEdit = null
+            }
+        )
+    }
+}
+
+@Composable
+private fun EditProviderDialog(
+    provider: Provider,
+    onDismiss: () -> Unit,
+    onSave: (Provider) -> Unit
+) {
+    var name by remember(provider.id) { mutableStateOf(provider.name) }
+    var apiBaseUrl by remember(provider.id) { mutableStateOf(provider.apiBaseUrl) }
+    var apiPath by remember(provider.id) { mutableStateOf(provider.apiPath) }
+    var apiKey by remember(provider.id) { mutableStateOf(provider.apiKey ?: "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Provider") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large
+                )
+                OutlinedTextField(
+                    value = apiBaseUrl,
+                    onValueChange = { apiBaseUrl = it },
+                    label = { Text("API Base URL") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
+                )
+                OutlinedTextField(
+                    value = apiPath,
+                    onValueChange = { apiPath = it },
+                    label = { Text("API Path") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large
+                )
+                OutlinedTextField(
+                    value = apiKey,
+                    onValueChange = { apiKey = it },
+                    label = { Text("API Key") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    visualTransformation = PasswordVisualTransformation()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onSave(
+                        provider.copy(
+                            name = name.trim(),
+                            apiBaseUrl = apiBaseUrl.trim(),
+                            apiPath = apiPath.trim(),
+                            apiKey = apiKey.trim().ifEmpty { null }
+                        )
+                    )
+                },
+                enabled = name.isNotBlank() && apiBaseUrl.isNotBlank()
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable

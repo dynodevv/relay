@@ -26,20 +26,22 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
-    var darkMode by remember { mutableStateOf("system") }
-    var dynamicColors by remember { mutableStateOf(true) }
+fun SettingsScreen(
+    onBack: () -> Unit,
+    viewModel: SettingsViewModel = hiltViewModel()
+) {
+    val themeMode by viewModel.themeMode.collectAsState()
+    val dynamicColors by viewModel.dynamicColors.collectAsState()
 
     Scaffold(
         topBar = {
@@ -75,18 +77,18 @@ fun SettingsScreen(onBack: () -> Unit) {
                     )
                     ThemeOption(
                         label = "Light",
-                        selected = darkMode == "light",
-                        onSelect = { darkMode = "light" }
+                        selected = themeMode == "light",
+                        onSelect = { viewModel.setThemeMode("light") }
                     )
                     ThemeOption(
                         label = "Dark",
-                        selected = darkMode == "dark",
-                        onSelect = { darkMode = "dark" }
+                        selected = themeMode == "dark",
+                        onSelect = { viewModel.setThemeMode("dark") }
                     )
                     ThemeOption(
                         label = "System default",
-                        selected = darkMode == "system",
-                        onSelect = { darkMode = "system" }
+                        selected = themeMode == "system",
+                        onSelect = { viewModel.setThemeMode("system") }
                     )
                 }
             }
@@ -107,7 +109,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Switch(checked = dynamicColors, onCheckedChange = { dynamicColors = it })
+                    Switch(
+                        checked = dynamicColors,
+                        onCheckedChange = { viewModel.setDynamicColors(it) }
+                    )
                 }
             }
 

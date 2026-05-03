@@ -19,6 +19,9 @@ class ModelsViewModel @Inject constructor(
     private val _isFetching = MutableStateFlow(false)
     val isFetching: StateFlow<Boolean> = _isFetching
 
+    private val _fetchError = MutableStateFlow<String?>(null)
+    val fetchError: StateFlow<String?> = _fetchError
+
     fun getModels(providerId: Long): Flow<List<AIModel>> =
         repository.getModels(providerId)
 
@@ -43,20 +46,41 @@ class ModelsViewModel @Inject constructor(
     fun fetchModelsFromApi(providerId: Long) {
         viewModelScope.launch {
             _isFetching.value = true
+            _fetchError.value = null
             try {
                 val provider = repository.getProvider(providerId)
-                provider?.let {
-                    val result = repository.fetchModelsFromApi(it)
-                    result.getOrNull()?.let { models ->
-                        models.forEach { model ->
-                            repository.addModel(model)
-                        }
-                    }
+                if (provider == null) {
+                    _fetchError.value = "Provider not found"
+                    return@launch
                 }
-            } catch (_: Exception) {
+                if (provider.apiKey.isNullOrBlank()) {
+                    _fetchError.value = "API key is required to fetch models"
+                    return@launch
+                }
+                val result = repository.fetchModelsFromApi(provider)
+                result.fold(
+                    onSuccess = { models ->
+                        if (models.isEmpty()) {
+                            _fetchError.value = "No models returned from API"
+                        } else {
+                            models.forEach { model ->
+                                repository.addModel(model)
+                            }
+                        }
+                    },
+                    onFailure = { error ->
+                        _fetchError.value = error.message ?: "Failed to fetch models"
+                    }
+                )
+            } catch (e: Exception) {
+                _fetchError.value = e.message ?: "Unknown error"
             } finally {
                 _isFetching.value = false
             }
         }
+    }
+
+    fun clearFetchError() {
+        _fetchError.value = null
     }
 }

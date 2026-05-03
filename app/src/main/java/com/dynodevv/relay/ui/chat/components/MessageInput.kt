@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -30,7 +31,9 @@ fun MessageInput(
     value: String,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
+    onAttach: () -> Unit,
     isLoading: Boolean,
+    supportsAttachments: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -41,9 +44,21 @@ fun MessageInput(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 16.dp),
             verticalAlignment = Alignment.Bottom
         ) {
+            if (supportsAttachments) {
+                IconButton(
+                    onClick = onAttach,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                ) {
+                    Icon(
+                        Icons.Default.AttachFile,
+                        contentDescription = "Attach image"
+                    )
+                }
+            }
+
             OutlinedTextField(
                 value = value,
                 onValueChange = onValueChange,

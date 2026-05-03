@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -21,18 +22,23 @@ import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,6 +46,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.dynodevv.relay.domain.model.AIModel
 
@@ -53,9 +61,20 @@ fun ModelsScreen(
 ) {
     val models by viewModel.getModels(providerId).collectAsState(initial = emptyList())
     val isFetching by viewModel.isFetching.collectAsState()
+    val fetchError by viewModel.fetchError.collectAsState()
     var modelToDelete by remember { mutableStateOf<AIModel?>(null) }
+    var modelToEdit by remember { mutableStateOf<AIModel?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(fetchError) {
+        fetchError?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearFetchError()
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Models") },
@@ -102,7 +121,7 @@ fun ModelsScreen(
             items(models) { model ->
                 ModelCard(
                     model = model,
-                    onEdit = { viewModel.editModel(model) },
+                    onEdit = { modelToEdit = model },
                     onDelete = { modelToDelete = model }
                 )
             }
@@ -131,6 +150,89 @@ fun ModelsScreen(
             }
         )
     }
+
+    modelToEdit?.let { model ->
+        EditModelDialog(
+            model = model,
+            onDismiss = { modelToEdit = null },
+            onSave = { updated ->
+                viewModel.editModel(updated)
+                modelToEdit = null
+            }
+        )
+    }
+}
+
+@Composable
+private fun EditModelDialog(
+    model: AIModel,
+    onDismiss: () -> Unit,
+    onSave: (AIModel) -> Unit
+) {
+    var displayName by remember(model.id) { mutableStateOf(model.displayName) }
+    var supportsImageInput by remember(model.id) { mutableStateOf(model.supportsImageInput) }
+    var supportsTools by remember(model.id) { mutableStateOf(model.supportsTools) }
+    var supportsReasoning by remember(model.id) { mutableStateOf(model.supportsReasoning) }
+    var contextLength by remember(model.id) { mutableStateOf(model.contextLength?.toString() ?: "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Model") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { displayName = it },
+                    label = { Text("Display Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large
+                )
+                OutlinedTextField(
+                    value = contextLength,
+                    onValueChange = { contextLength = it },
+                    label = { Text("Context Length") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = supportsImageInput, onCheckedChange = { supportsImageInput = it })
+                    Text("Supports Image Input")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = supportsTools, onCheckedChange = { supportsTools = it })
+                    Text("Supports Tools")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = supportsReasoning, onCheckedChange = { supportsReasoning = it })
+                    Text("Supports Reasoning")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onSave(
+                        model.copy(
+                            displayName = displayName.trim(),
+                            supportsImageInput = supportsImageInput,
+                            supportsTools = supportsTools,
+                            supportsReasoning = supportsReasoning,
+                            contextLength = contextLength.toIntOrNull()
+                        )
+                    )
+                },
+                enabled = displayName.isNotBlank()
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable
