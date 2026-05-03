@@ -191,14 +191,19 @@ fun ChatScreen(
 
                                 var totalX = 0f
                                 var totalY = 0f
+                                var prevX = startX
+                                var prevY = down.position.y
 
                                 while (true) {
                                     val event = awaitPointerEvent()
                                     val change = event.changes.firstOrNull() ?: break
-                                    val dx = change.positionChange().x
-                                    val dy = change.positionChange().y
+                                    val pos = change.position
+                                    val dx = pos.x - prevX
+                                    val dy = pos.y - prevY
+                                    prevX = pos.x
+                                    prevY = pos.y
                                     totalX += dx
-                                    totalY += abs(dy)
+                                    totalY += kotlin.math.abs(dy)
                                     change.consume()
 
                                     if (totalX > 80f && totalX > totalY * 1.5f) {
