@@ -23,6 +23,14 @@ A modern Android AI chat client with BYOK (Bring Your Own Key) support.
 
 The project uses GitHub Actions for CI/CD. Push to `main` or create a release tag to trigger an APK build.
 
+### Download Prebuilt APKs
+
+Grab the latest APKs from the [GitHub Actions artifacts](https://github.com/dynodevv/relay/actions) or from [Releases](https://github.com/dynodevv/relay/releases).
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for planned features and future development.
+
 ## License
 
 MIT
