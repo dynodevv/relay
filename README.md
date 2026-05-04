@@ -31,6 +31,12 @@ Grab the latest APKs from the [GitHub Actions artifacts](https://github.com/dyno
 
 See [ROADMAP.md](ROADMAP.md) for planned features and future development.
 
+## Screenshots
+
+| Chat Interface | Model Fetching |
+| :---: | :---: |
+| <img src="./screenshots/chat.png" width="300"> | <img src="./screenshots/modelfetch.png" width="300"> |
+
 ## License
 
 MIT
