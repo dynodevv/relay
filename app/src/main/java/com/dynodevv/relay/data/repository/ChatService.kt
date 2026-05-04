@@ -6,6 +6,7 @@ import com.dynodevv.relay.data.remote.dto.MessageDto
 import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.Provider
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,7 +23,7 @@ class ChatService @Inject constructor(
         conversationId: Long,
         temperature: Double? = null,
         maxTokens: Int? = null
-    ): Flow<String> {
+    ): Flow<String> = flow {
         val request = ChatRequestDto(
             model = modelId,
             messages = messages.map {
@@ -33,22 +34,40 @@ class ChatService @Inject constructor(
             maxTokens = maxTokens
         )
 
-        return api.streamChatCompletion(
+        var hasEmittedContent = false
+
+        api.streamChatCompletion(
             baseUrl = provider.apiBaseUrl,
             apiPath = provider.apiPath,
             apiKey = provider.apiKey,
             request = request
-        ).map { chunk ->
+        ).collect { chunk ->
             when {
                 chunk.error != null -> throw Exception(chunk.error.message)
                 else -> {
                     val choice = chunk.choices?.firstOrNull()
-                    // Try delta first (standard streaming format), fallback to message
                     val content = choice?.delta?.content
                         ?: choice?.message?.content
                         ?: ""
-                    content
+                    if (content.isNotEmpty()) {
+                        hasEmittedContent = true
+                        emit(content)
+                    }
                 }
+            }
+        }
+
+        // If streaming produced no content, fall back to non-streaming
+        if (!hasEmittedContent) {
+            val nonStreamRequest = request.copy(stream = false)
+            val result = api.sendChatCompletion(
+                baseUrl = provider.apiBaseUrl,
+                apiPath = provider.apiPath,
+                apiKey = provider.apiKey,
+                request = nonStreamRequest
+            )
+            result.getOrNull()?.choices?.firstOrNull()?.message?.content?.let {
+                if (it.isNotEmpty()) emit(it)
             }
         }
     }

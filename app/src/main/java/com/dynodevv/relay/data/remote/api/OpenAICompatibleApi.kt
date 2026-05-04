@@ -35,12 +35,21 @@ class OpenAICompatibleApi @Inject constructor(
         return try {
             val response: HttpResponse = client.get("$baseUrl/models") {
                 apiKey?.let { bearerAuth(it) }
-                contentType(ContentType.Application.Json)
+                header("Accept", "application/json")
+                // OpenRouter-specific headers
+                header("HTTP-Referer", "https://github.com/dynodevv/relay")
+                header("X-Title", "Relay")
             }
             if (response.status.isSuccess()) {
-                Result.success(response.body())
+                val bodyText = response.bodyAsText()
+                try {
+                    Result.success(json.decodeFromString<ModelsResponseDto>(bodyText))
+                } catch (e: Exception) {
+                    Result.failure(Exception("Failed to parse models response: ${e.message}. Response start: ${bodyText.take(200)}"))
+                }
             } else {
-                Result.failure(Exception("HTTP ${response.status.value}: ${response.status.description}"))
+                val bodyText = response.bodyAsText()
+                Result.failure(Exception("HTTP ${response.status.value}: ${bodyText.take(200)}"))
             }
         } catch (e: ClientRequestException) {
             Result.failure(Exception("Client error: ${e.response.status.description}"))
@@ -62,17 +71,18 @@ class OpenAICompatibleApi @Inject constructor(
                 contentType(ContentType.Application.Json)
                 apiKey?.let { bearerAuth(it) }
                 header("Accept", "text/event-stream")
+                // OpenRouter-specific headers
+                header("HTTP-Referer", "https://github.com/dynodevv/relay")
+                header("X-Title", "Relay")
                 setBody(request)
             }
 
             if (!response.status.isSuccess()) {
-                val errorBody = try {
-                    response.body<ChatResponseDto>().error
-                } catch (_: Exception) { null }
+                val errorText = try { response.bodyAsText() } catch (_: Exception) { null }
                 emit(
                     ChatResponseDto(
-                        error = errorBody ?: com.dynodevv.relay.data.remote.dto.ErrorDto(
-                            "HTTP ${response.status.value}: ${response.status.description}"
+                        error = com.dynodevv.relay.data.remote.dto.ErrorDto(
+                            "HTTP ${response.status.value}: ${errorText ?: response.status.description}"
                         )
                     )
                 )
@@ -80,9 +90,9 @@ class OpenAICompatibleApi @Inject constructor(
             }
 
             val channel = response.bodyAsChannel()
-            var accumulatedLine = ""
             while (!channel.isClosedForRead) {
                 val line = channel.readUTF8Line() ?: continue
+                if (line.isBlank()) continue
 
                 // Handle SSE format: "data: {...}"
                 if (line.startsWith("data: ")) {
@@ -103,15 +113,7 @@ class OpenAICompatibleApi @Inject constructor(
                         val chunk = json.decodeFromString<ChatResponseDto>(line)
                         emit(chunk)
                     } catch (_: Exception) {
-                        // Might be a partial JSON line, accumulate
-                        accumulatedLine += line
-                        try {
-                            val chunk = json.decodeFromString<ChatResponseDto>(accumulatedLine)
-                            emit(chunk)
-                            accumulatedLine = ""
-                        } catch (_: Exception) {
-                            // Still partial, keep accumulating
-                        }
+                        // Skip malformed chunks
                     }
                     continue
                 }
@@ -135,16 +137,17 @@ class OpenAICompatibleApi @Inject constructor(
             val response: HttpResponse = client.post("$baseUrl$apiPath") {
                 contentType(ContentType.Application.Json)
                 apiKey?.let { bearerAuth(it) }
+                // OpenRouter-specific headers
+                header("HTTP-Referer", "https://github.com/dynodevv/relay")
+                header("X-Title", "Relay")
                 setBody(request)
             }
             if (response.status.isSuccess()) {
                 Result.success(response.body())
             } else {
-                val error = try {
-                    response.body<ChatResponseDto>().error
-                } catch (_: Exception) { null }
+                val errorText = try { response.bodyAsText() } catch (_: Exception) { null }
                 Result.failure(
-                    Exception(error?.message ?: "HTTP ${response.status.value}")
+                    Exception(errorText ?: "HTTP ${response.status.value}")
                 )
             }
         } catch (e: Exception) {
