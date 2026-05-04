@@ -31,6 +31,8 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.m3.markdownColor
 import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.MessageRole
 
@@ -85,10 +87,12 @@ fun MessageBubble(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
                         } else {
-                            Text(
-                                text = message.content,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            Markdown(
+                                content = message.content,
+                                modifier = Modifier,
+                                colors = markdownColor(
+                                    text = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             )
                         }
                     }

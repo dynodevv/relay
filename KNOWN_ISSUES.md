@@ -12,26 +12,6 @@ _None currently tracked._
 
 ## Minor
 
-### Markdown Rendering Does Not Work
-
-**Status:** Known issue — messages display as plain text  
-**Severity:** Low — chat is fully usable, but formatting is lost
-
-**Description:**  
-AI assistant messages that contain Markdown formatting (bold, italic, code blocks, lists, links, etc.) are currently rendered as plain text. The Markdown renderer dependency (`multiplatform-markdown-renderer-m3`) is included in the project, but the composable is not being used or is failing silently, resulting in raw Markdown syntax appearing in the chat bubbles.
-
-**Symptoms:**
-- Messages show raw Markdown like `**bold**` or `\`\`\`kotlin` instead of styled output
-- No crashes — the app remains fully functional
-- Plain text responses work perfectly
-
-**Next steps (when prioritized):**
-- Investigate why `Markdown` composable from `multiplatform-markdown-renderer-m3` is not rendering
-- Check for Compose version incompatibilities with the Markdown renderer
-- Consider switching to `mikepenz/multiplatform-markdown-renderer` stable release or another Markdown library
-
----
-
 ### Streaming Responses Are Inconsistent
 
 **Status:** Known issue — non-streaming fallback works reliably  
@@ -61,6 +41,7 @@ When sending a message, the response sometimes streams token-by-token in real-ti
 
 | Issue | Resolution |
 |---|---|
+| **Markdown Rendering Does Not Work** | **Fixed!** Replaced plain `Text` composable with `Markdown` from `multiplatform-markdown-renderer-m3` for assistant messages |
 | **AI Assistant Messages Appear Empty** | **Fixed!** Triple-layer fix: (1) SSE parser now handles raw JSON lines, (2) content extraction falls back from `delta.content` to `message.content`, (3) replaced Markdown renderer with plain Text composable |
 | Release build fails due to missing ProGuard rules | Added comprehensive `-keep` and `-dontwarn` rules |
 | `ChatRequestDto` serialization error | Applied `kotlinx-serialization` plugin to app module |
