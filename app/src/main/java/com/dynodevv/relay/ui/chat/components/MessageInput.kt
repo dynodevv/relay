@@ -12,6 +12,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -31,6 +32,7 @@ fun MessageInput(
     value: String,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
+    onStop: () -> Unit,
     onAttach: () -> Unit,
     isLoading: Boolean,
     supportsAttachments: Boolean = false,
@@ -75,27 +77,46 @@ fun MessageInput(
                     unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                 ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { onSend() }),
-                maxLines = 6
+                keyboardActions = KeyboardActions(onSend = { if (!isLoading) onSend() }),
+                maxLines = 6,
+                enabled = !isLoading
             )
 
-            IconButton(
-                onClick = onSend,
-                enabled = value.isNotBlank() && !isLoading,
-                modifier = Modifier
-                    .padding(start = 8.dp, bottom = 4.dp)
-                    .clip(CircleShape),
-                colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Send message"
-                )
+            if (isLoading) {
+                IconButton(
+                    onClick = onStop,
+                    modifier = Modifier
+                        .padding(start = 8.dp, bottom = 4.dp)
+                        .clip(CircleShape),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Stop,
+                        contentDescription = "Stop generation"
+                    )
+                }
+            } else {
+                IconButton(
+                    onClick = onSend,
+                    enabled = value.isNotBlank(),
+                    modifier = Modifier
+                        .padding(start = 8.dp, bottom = 4.dp)
+                        .clip(CircleShape),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Send message"
+                    )
+                }
             }
         }
     }

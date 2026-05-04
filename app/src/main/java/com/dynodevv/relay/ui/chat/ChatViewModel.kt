@@ -11,6 +11,7 @@ import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.MessageRole
 import com.dynodevv.relay.domain.model.Provider
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -41,6 +42,8 @@ class ChatViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState
+
+    private var currentStreamingJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -103,7 +106,7 @@ class ChatViewModel @Inject constructor(
             return
         }
 
-        viewModelScope.launch {
+        currentStreamingJob = viewModelScope.launch {
             _uiState.update { it.copy(inputText = "", isLoading = true, error = null) }
 
             try {
@@ -167,11 +170,9 @@ class ChatViewModel @Inject constructor(
                             }
                         )
                     }
-                    // Also sync to DB in background
-                    messageRepository.updateMessageContent(assistantMessageId, accumulated, isStreaming = true)
                 }
 
-                // Final update
+                // Final DB write only after streaming completes
                 messageRepository.updateMessageContent(assistantMessageId, accumulated, isStreaming = false)
                 assistantMessage = assistantMessage.copy(content = accumulated, isStreaming = false)
                 _uiState.update { state ->
@@ -184,7 +185,33 @@ class ChatViewModel @Inject constructor(
                 }
                 chatRepository.updateTimestamp(conversationId)
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, error = e.message) }
+                // Don't show cancellation as an error
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    _uiState.update { it.copy(isLoading = false, error = e.message) }
+                } else {
+                    _uiState.update { it.copy(isLoading = false) }
+                }
+            } finally {
+                currentStreamingJob = null
+            }
+        }
+    }
+
+    fun stopGeneration() {
+        currentStreamingJob?.cancel()
+        currentStreamingJob = null
+        // Mark the last assistant message as no longer streaming
+        _uiState.update { state ->
+            val lastMsg = state.messages.lastOrNull()
+            if (lastMsg?.role is MessageRole.Assistant && lastMsg.isStreaming) {
+                state.copy(
+                    messages = state.messages.map { msg ->
+                        if (msg.id == lastMsg.id) msg.copy(isStreaming = false) else msg
+                    },
+                    isLoading = false
+                )
+            } else {
+                state.copy(isLoading = false)
             }
         }
     }
@@ -211,7 +238,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun regenerateMessage(messageId: Long) {
-        viewModelScope.launch {
+        currentStreamingJob = viewModelScope.launch {
             val conversationId = _uiState.value.currentConversationId
             val provider = _uiState.value.currentProvider ?: return@launch
             val modelId = _uiState.value.currentModelId
@@ -260,7 +287,6 @@ class ChatViewModel @Inject constructor(
                             }
                         )
                     }
-                    messageRepository.updateMessageContent(assistantMessageId, accumulated, isStreaming = true)
                 }
 
                 messageRepository.updateMessageContent(assistantMessageId, accumulated, isStreaming = false)
@@ -275,7 +301,13 @@ class ChatViewModel @Inject constructor(
                 }
                 chatRepository.updateTimestamp(conversationId)
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, error = e.message) }
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    _uiState.update { it.copy(isLoading = false, error = e.message) }
+                } else {
+                    _uiState.update { it.copy(isLoading = false) }
+                }
+            } finally {
+                currentStreamingJob = null
             }
         }
     }

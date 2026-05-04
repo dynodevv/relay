@@ -153,6 +153,7 @@ fun ChatScreen(
                     value = uiState.inputText,
                     onValueChange = viewModel::onInputChange,
                     onSend = { viewModel.sendMessage() },
+                    onStop = { viewModel.stopGeneration() },
                     onAttach = { },
                     isLoading = uiState.isLoading,
                     supportsAttachments = false,
