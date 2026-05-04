@@ -14,9 +14,8 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.flow.Flow
@@ -80,8 +79,11 @@ class OpenAICompatibleApi @Inject constructor(
             }
 
             val channel = response.bodyAsChannel()
+            var accumulatedLine = ""
             while (!channel.isClosedForRead) {
                 val line = channel.readUTF8Line() ?: continue
+
+                // Handle SSE format: "data: {...}"
                 if (line.startsWith("data: ")) {
                     val data = line.removePrefix("data: ").trim()
                     if (data == "[DONE]") break
@@ -91,6 +93,26 @@ class OpenAICompatibleApi @Inject constructor(
                     } catch (_: Exception) {
                         // Skip malformed chunks
                     }
+                    continue
+                }
+
+                // Handle raw JSON lines (some providers send JSON directly without SSE prefix)
+                if (line.startsWith("{")) {
+                    try {
+                        val chunk = json.decodeFromString<ChatResponseDto>(line)
+                        emit(chunk)
+                    } catch (_: Exception) {
+                        // Might be a partial JSON line, accumulate
+                        accumulatedLine += line
+                        try {
+                            val chunk = json.decodeFromString<ChatResponseDto>(accumulatedLine)
+                            emit(chunk)
+                            accumulatedLine = ""
+                        } catch (_: Exception) {
+                            // Still partial, keep accumulating
+                        }
+                    }
+                    continue
                 }
             }
         } catch (e: Exception) {

@@ -4,7 +4,6 @@ import com.dynodevv.relay.data.remote.api.OpenAICompatibleApi
 import com.dynodevv.relay.data.remote.dto.ChatRequestDto
 import com.dynodevv.relay.data.remote.dto.MessageDto
 import com.dynodevv.relay.domain.model.Message
-import com.dynodevv.relay.domain.model.MessageRole
 import com.dynodevv.relay.domain.model.Provider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -42,7 +41,14 @@ class ChatService @Inject constructor(
         ).map { chunk ->
             when {
                 chunk.error != null -> throw Exception(chunk.error.message)
-                else -> chunk.choices?.firstOrNull()?.delta?.content ?: ""
+                else -> {
+                    val choice = chunk.choices?.firstOrNull()
+                    // Try delta first (standard streaming format), fallback to message
+                    val content = choice?.delta?.content
+                        ?: choice?.message?.content
+                        ?: ""
+                    content
+                }
             }
         }
     }
