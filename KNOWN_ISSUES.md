@@ -12,7 +12,28 @@ _None currently tracked._
 
 ## Minor
 
-_None currently tracked._
+### Streaming Responses Are Inconsistent
+
+**Status:** Known issue — non-streaming fallback works reliably  
+**Severity:** Low — chat is fully usable via non-streaming fallback
+
+**Description:**  
+When sending a message, the response sometimes streams token-by-token in real-time, but most of the time no streaming chunks are received and the full response only appears after generation completes. A non-streaming fallback ensures the response always arrives, but the real-time typing effect is intermittent.
+
+**Symptoms:**
+- Occasionally works — you see tokens appear one by one
+- Most of the time doesn't work — you wait a few seconds, then the full response pops in at once
+- The non-streaming fallback always delivers the complete response
+
+**Possible causes:**
+1. SSE (`bodyAsChannel()`) parsing may drop chunks depending on network timing
+2. Some providers may send chunks in a format the parser doesn't always catch
+3. Ktor's byte channel read might consume partial lines or buffer data
+
+**Next steps (when prioritized):**
+- Add debug logging to trace exactly what bytes arrive on each stream
+- Consider switching to Ktor's built-in SSE plugin or a more robust parser
+- Add retry logic specifically for the streaming path
 
 ---
 
