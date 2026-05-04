@@ -12,6 +12,25 @@ _None currently tracked._
 
 ## Minor
 
+### Google Sans Flex ROND Not Applied Everywhere
+
+**Status:** Known issue — some text uses default roundness  
+**Severity:** Low — text renders fine, but visual consistency is off
+
+**Description:**  
+The `GoogleSansFlex` variable font supports a `ROND` (roundness) axis that should be set to `100%` everywhere for the app's signature rounded look. While the main `GoogleSansFlex` `FontFamily` sets `ROND = 100f` for all weights, `GoogleSansCode` (used for code blocks and monospace text) does **not** apply the `ROND` variation. This means code snippets and any other text using `GoogleSansCode` render with the font's default, less-rounded glyphs instead of the fully rounded style used everywhere else.
+
+**Symptoms:**
+- Code blocks and inline code appear visually "sharper" or less rounded than the rest of the UI
+- Inconsistent brand feel between body text and code text
+- No functional impact — readability is unaffected
+
+**Next steps (when prioritized):**
+- Add `FontVariation.Setting("ROND", 100f)` to every weight in `GoogleSansCode` in `Type.kt`
+- Audit the entire codebase for any other `FontFamily` or `TextStyle` definitions that might be missing the `ROND` axis
+
+---
+
 ### Streaming Responses Are Inconsistent
 
 **Status:** Known issue — non-streaming fallback works reliably  
