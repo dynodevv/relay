@@ -43,6 +43,7 @@ When sending a message, the response sometimes streams token-by-token in real-ti
 |---|---|
 | **Markdown Rendering Does Not Work** | **Fixed!** Replaced plain `Text` composable with `Markdown` from `multiplatform-markdown-renderer-m3` for assistant messages |
 | **AI Assistant Messages Appear Empty** | **Fixed!** Triple-layer fix: (1) SSE parser now handles raw JSON lines, (2) content extraction falls back from `delta.content` to `message.content`, (3) replaced Markdown renderer with plain Text composable |
+| **Google Sans Flex roundness (ROND) not applied everywhere** | **Fixed!** Added `wght` axis to `FontVariation.Settings` for all `GoogleSansFlex` and `GoogleSansCode` entries so variable font weight matching works correctly and the system doesn't fall back to non-rounded system fonts |
 | Release build fails due to missing ProGuard rules | Added comprehensive `-keep` and `-dontwarn` rules |
 | `ChatRequestDto` serialization error | Applied `kotlinx-serialization` plugin to app module |
 | `positionChange()` compilation error | Replaced with manual delta tracking |

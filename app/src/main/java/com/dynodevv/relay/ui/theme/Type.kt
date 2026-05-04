@@ -15,27 +15,42 @@ val GoogleSansFlex = FontFamily(
     Font(
         R.font.googlesansflex_variable,
         weight = FontWeight.Light,
-        variationSettings = FontVariation.Settings(FontVariation.Setting("ROND", 100f))
+        variationSettings = FontVariation.Settings(
+            FontVariation.Setting("wght", FontWeight.Light.weight.toFloat()),
+            FontVariation.Setting("ROND", 100f)
+        )
     ),
     Font(
         R.font.googlesansflex_variable,
         weight = FontWeight.Normal,
-        variationSettings = FontVariation.Settings(FontVariation.Setting("ROND", 100f))
+        variationSettings = FontVariation.Settings(
+            FontVariation.Setting("wght", FontWeight.Normal.weight.toFloat()),
+            FontVariation.Setting("ROND", 100f)
+        )
     ),
     Font(
         R.font.googlesansflex_variable,
         weight = FontWeight.Medium,
-        variationSettings = FontVariation.Settings(FontVariation.Setting("ROND", 100f))
+        variationSettings = FontVariation.Settings(
+            FontVariation.Setting("wght", FontWeight.Medium.weight.toFloat()),
+            FontVariation.Setting("ROND", 100f)
+        )
     ),
     Font(
         R.font.googlesansflex_variable,
         weight = FontWeight.SemiBold,
-        variationSettings = FontVariation.Settings(FontVariation.Setting("ROND", 100f))
+        variationSettings = FontVariation.Settings(
+            FontVariation.Setting("wght", FontWeight.SemiBold.weight.toFloat()),
+            FontVariation.Setting("ROND", 100f)
+        )
     ),
     Font(
         R.font.googlesansflex_variable,
         weight = FontWeight.Bold,
-        variationSettings = FontVariation.Settings(FontVariation.Setting("ROND", 100f))
+        variationSettings = FontVariation.Settings(
+            FontVariation.Setting("wght", FontWeight.Bold.weight.toFloat()),
+            FontVariation.Setting("ROND", 100f)
+        )
     )
 )
 
@@ -44,17 +59,26 @@ val GoogleSansCode = FontFamily(
     Font(
         R.font.googlesanscode_variable,
         weight = FontWeight.Normal,
-        variationSettings = FontVariation.Settings(FontVariation.Setting("MONO", 1f))
+        variationSettings = FontVariation.Settings(
+            FontVariation.Setting("wght", FontWeight.Normal.weight.toFloat()),
+            FontVariation.Setting("MONO", 1f)
+        )
     ),
     Font(
         R.font.googlesanscode_variable,
         weight = FontWeight.Medium,
-        variationSettings = FontVariation.Settings(FontVariation.Setting("MONO", 1f))
+        variationSettings = FontVariation.Settings(
+            FontVariation.Setting("wght", FontWeight.Medium.weight.toFloat()),
+            FontVariation.Setting("MONO", 1f)
+        )
     ),
     Font(
         R.font.googlesanscode_variable,
         weight = FontWeight.Bold,
-        variationSettings = FontVariation.Settings(FontVariation.Setting("MONO", 1f))
+        variationSettings = FontVariation.Settings(
+            FontVariation.Setting("wght", FontWeight.Bold.weight.toFloat()),
+            FontVariation.Setting("MONO", 1f)
+        )
     )
 )
 

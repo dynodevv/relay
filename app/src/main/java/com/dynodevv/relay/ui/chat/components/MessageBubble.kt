@@ -45,8 +45,10 @@ import com.mikepenz.markdown.compose.elements.MarkdownCodeBlock
 import com.mikepenz.markdown.compose.elements.MarkdownCodeFence
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
+import com.mikepenz.markdown.m3.markdownTypography
 import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.MessageRole
+import com.dynodevv.relay.ui.theme.GoogleSansCode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -106,6 +108,14 @@ fun MessageBubble(
                                 modifier = Modifier,
                                 colors = markdownColor(
                                     text = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                typography = markdownTypography(
+                                    code = MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = GoogleSansCode
+                                    ),
+                                    inlineCode = MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = GoogleSansCode
+                                    )
                                 ),
                                 components = markdownComponents(
                                     codeBlock = {
