@@ -1,6 +1,7 @@
 package com.dynodevv.relay.ui.chat.components
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,8 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
@@ -24,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,10 +35,20 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.mikepenz.markdown.compose.LocalMarkdownColors
+import com.mikepenz.markdown.compose.LocalMarkdownDimens
+import com.mikepenz.markdown.compose.LocalMarkdownPadding
+import com.mikepenz.markdown.compose.LocalMarkdownTypography
+import com.mikepenz.markdown.compose.components.markdownComponents
+import com.mikepenz.markdown.compose.elements.MarkdownCodeBackground
+import com.mikepenz.markdown.compose.elements.MarkdownCodeBlock
+import com.mikepenz.markdown.compose.elements.MarkdownCodeFence
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
 import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.MessageRole
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun MessageBubble(
@@ -92,6 +106,18 @@ fun MessageBubble(
                                 modifier = Modifier,
                                 colors = markdownColor(
                                     text = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                components = markdownComponents(
+                                    codeBlock = {
+                                        MarkdownCodeBlock(it.content, it.node) { code, _ ->
+                                            CodeBlockWithCopy(code)
+                                        }
+                                    },
+                                    codeFence = {
+                                        MarkdownCodeFence(it.content, it.node) { code, _ ->
+                                            CodeBlockWithCopy(code)
+                                        }
+                                    }
                                 )
                             )
                         }
@@ -133,6 +159,48 @@ fun MessageBubble(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CodeBlockWithCopy(code: String) {
+    val clipboardManager = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
+    var showCopied by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        MarkdownCodeBackground(
+            color = LocalMarkdownColors.current.codeBackground,
+            shape = RoundedCornerShape(LocalMarkdownDimens.current.codeBackgroundCornerSize),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = code,
+                style = LocalMarkdownTypography.current.code,
+                color = LocalMarkdownColors.current.codeText,
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(LocalMarkdownPadding.current.codeBlock)
+            )
+        }
+
+        IconButton(
+            onClick = {
+                clipboardManager.setText(AnnotatedString(code))
+                showCopied = true
+                scope.launch { delay(2000); showCopied = false }
+            },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(4.dp)
+        ) {
+            Icon(
+                imageVector = if (showCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                contentDescription = if (showCopied) "Copied" else "Copy code",
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
         }
     }
 }
