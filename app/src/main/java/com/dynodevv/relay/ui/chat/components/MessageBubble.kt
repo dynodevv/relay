@@ -185,22 +185,28 @@ private fun CodeBlockWithCopy(code: String) {
             )
         }
 
-        IconButton(
-            onClick = {
-                clipboardManager.setText(AnnotatedString(code))
-                showCopied = true
-                scope.launch { delay(2000); showCopied = false }
-            },
+        Surface(
+            shape = RoundedCornerShape(6.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(4.dp)
+                .padding(6.dp)
         ) {
-            Icon(
-                imageVector = if (showCopied) Icons.Default.Check else Icons.Default.ContentCopy,
-                contentDescription = if (showCopied) "Copied" else "Copy code",
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
+            IconButton(
+                onClick = {
+                    clipboardManager.setText(AnnotatedString(code))
+                    showCopied = true
+                    scope.launch { delay(2000); showCopied = false }
+                },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = if (showCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                    contentDescription = if (showCopied) "Copied" else "Copy code",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
