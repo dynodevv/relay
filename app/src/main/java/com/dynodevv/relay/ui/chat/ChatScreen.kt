@@ -2,6 +2,7 @@ package com.dynodevv.relay.ui.chat
 
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,7 +22,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
@@ -57,6 +57,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.dynodevv.relay.domain.model.Conversation
 import com.dynodevv.relay.domain.model.MessageRole
@@ -301,8 +302,10 @@ private fun ChatNavigationDrawer(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
         )
 
+        val density = LocalDensity.current
         LazyColumn {
             items(conversations, key = { it.id }) { conversation ->
+                var conversationMenuOffset by remember { mutableStateOf(DpOffset.Zero) }
                 Box {
                     NavigationDrawerItem(
                         label = {
@@ -320,24 +323,29 @@ private fun ChatNavigationDrawer(
                             }
                         },
                         selected = conversation.id == currentConversationId,
-                        onClick = { onConversationClick(conversation.id) },
-                        badge = {
-                            IconButton(
-                                onClick = { conversationMenuId = conversation.id },
-                                modifier = Modifier.height(32.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.MoreVert,
-                                    contentDescription = "Conversation options",
-                                    modifier = Modifier.height(18.dp)
+                        onClick = { }
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onTap = { onConversationClick(conversation.id) },
+                                    onLongPress = { offset ->
+                                        conversationMenuOffset = with(density) {
+                                            DpOffset(offset.x.toDp(), offset.y.toDp())
+                                        }
+                                        conversationMenuId = conversation.id
+                                    }
                                 )
                             }
-                        }
                     )
 
                     DropdownMenu(
                         expanded = conversationMenuId == conversation.id,
-                        onDismissRequest = { conversationMenuId = null }
+                        onDismissRequest = { conversationMenuId = null },
+                        offset = conversationMenuOffset
                     ) {
                         DropdownMenuItem(
                             text = { Text("Rename") },

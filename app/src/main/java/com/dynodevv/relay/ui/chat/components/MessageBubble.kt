@@ -37,7 +37,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.mikepenz.markdown.compose.LocalMarkdownColors
 import com.mikepenz.markdown.compose.LocalMarkdownDimens
@@ -64,8 +66,10 @@ fun MessageBubble(
 ) {
     val isUser = message.role is MessageRole.User
     val clipboardManager = LocalClipboardManager.current
+    val density = LocalDensity.current
     val maxWidth = LocalConfiguration.current.screenWidthDp.dp * 0.85f
     var showMenu by remember { mutableStateOf(false) }
+    var menuOffset by remember { mutableStateOf(DpOffset.Zero) }
 
     Row(
         modifier = Modifier
@@ -77,7 +81,12 @@ fun MessageBubble(
             modifier = Modifier
                 .widthIn(max = maxWidth)
                 .pointerInput(Unit) {
-                    detectTapGestures(onLongPress = { showMenu = true })
+                    detectTapGestures(onLongPress = { offset ->
+                        menuOffset = with(density) {
+                            DpOffset(offset.x.toDp(), offset.y.toDp())
+                        }
+                        showMenu = true
+                    })
                 }
         ) {
             Surface(
@@ -154,7 +163,8 @@ fun MessageBubble(
 
             DropdownMenu(
                 expanded = showMenu,
-                onDismissRequest = { showMenu = false }
+                onDismissRequest = { showMenu = false },
+                offset = menuOffset
             ) {
                 DropdownMenuItem(
                     text = { Text("Copy") },
