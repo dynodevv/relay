@@ -90,40 +90,103 @@ class OpenAICompatibleApi @Inject constructor(
             }
 
             val channel = response.bodyAsChannel()
-            while (!channel.isClosedForRead) {
-                val line = channel.readUTF8Line() ?: continue
-                if (line.isBlank()) continue
+            val eventDataBuffer = StringBuilder()
+            var lineCount = 0
 
-                // Handle SSE format: "data: {...}"
-                if (line.startsWith("data: ")) {
-                    val data = line.removePrefix("data: ").trim()
-                    if (data == "[DONE]") break
-                    try {
-                        val chunk = json.decodeFromString<ChatResponseDto>(data)
-                        emit(chunk)
-                    } catch (_: Exception) {
-                        // Skip malformed chunks
+            while (true) {
+                val line = channel.readUTF8Line() ?: break
+                lineCount++
+                val trimmedLine = line.removePrefix("\uFEFF").trimEnd('\r')
+
+                android.util.Log.d("RelaySSE", "[$lineCount] $trimmedLine")
+
+                if (trimmedLine.isBlank()) {
+                    // End of SSE event — process buffered data
+                    if (eventDataBuffer.isNotEmpty()) {
+                        val eventData = eventDataBuffer.toString()
+                        eventDataBuffer.clear()
+                        parseSseEvent(eventData)?.let { chunk ->
+                            val preview = chunk.choices?.firstOrNull()?.delta?.content?.take(30)
+                                ?: chunk.choices?.firstOrNull()?.message?.content?.take(30)
+                            android.util.Log.d("RelaySSE", "Emitted SSE chunk. Preview: $preview")
+                            emit(chunk)
+                        }
                     }
                     continue
                 }
 
-                // Handle raw JSON lines (some providers send JSON directly without SSE prefix)
-                if (line.startsWith("{")) {
+                // SSE data field: "data: ..." or "data:..."
+                if (trimmedLine.startsWith("data:")) {
+                    val data = trimmedLine.substringAfter("data:").removePrefix(" ").removePrefix("\t")
+                    if (eventDataBuffer.isNotEmpty()) {
+                        eventDataBuffer.append("\n")
+                    }
+                    eventDataBuffer.append(data)
+                    continue
+                }
+
+                // Raw JSON line (non-SSE response, e.g. provider ignored stream=true)
+                if (trimmedLine.startsWith("{")) {
                     try {
-                        val chunk = json.decodeFromString<ChatResponseDto>(line)
+                        val chunk = json.decodeFromString<ChatResponseDto>(trimmedLine)
+                        android.util.Log.d("RelaySSE", "Emitted raw JSON chunk")
                         emit(chunk)
                     } catch (_: Exception) {
-                        // Skip malformed chunks
+                        // Might be pretty-printed JSON spanning multiple lines
+                        val jsonBuffer = StringBuilder(trimmedLine)
+                        var jsonLines = 1
+                        while (jsonLines < 100) {
+                            val nextLine = channel.readUTF8Line() ?: break
+                            jsonBuffer.appendLine(nextLine)
+                            jsonLines++
+                            try {
+                                val chunk = json.decodeFromString<ChatResponseDto>(jsonBuffer.toString())
+                                android.util.Log.d("RelaySSE", "Emitted multi-line JSON chunk ($jsonLines lines)")
+                                emit(chunk)
+                                break
+                            } catch (_: Exception) {
+                                // Keep accumulating until parse succeeds or limit reached
+                            }
+                        }
                     }
                     continue
+                }
+
+                android.util.Log.d("RelaySSE", "Ignored line: $trimmedLine")
+            }
+
+            // Process any remaining buffered event data after channel closes
+            if (eventDataBuffer.isNotEmpty()) {
+                parseSseEvent(eventDataBuffer.toString())?.let { chunk ->
+                    val preview = chunk.choices?.firstOrNull()?.delta?.content?.take(30)
+                        ?: chunk.choices?.firstOrNull()?.message?.content?.take(30)
+                    android.util.Log.d("RelaySSE", "Emitted remaining SSE chunk. Preview: $preview")
+                    emit(chunk)
                 }
             }
+
+            android.util.Log.d("RelaySSE", "Stream ended. Total lines: $lineCount")
         } catch (e: Exception) {
+            android.util.Log.e("RelaySSE", "Streaming error", e)
             emit(
                 ChatResponseDto(
                     error = com.dynodevv.relay.data.remote.dto.ErrorDto(e.message ?: "Unknown error")
                 )
             )
+        }
+    }
+
+    private fun parseSseEvent(eventData: String): ChatResponseDto? {
+        val trimmed = eventData.trim()
+        if (trimmed == "[DONE]") {
+            android.util.Log.d("RelaySSE", "Received [DONE]")
+            return null
+        }
+        return try {
+            json.decodeFromString<ChatResponseDto>(trimmed)
+        } catch (e: Exception) {
+            android.util.Log.w("RelaySSE", "Failed to parse SSE event: $trimmed, error: ${e.message}")
+            null
         }
     }
 

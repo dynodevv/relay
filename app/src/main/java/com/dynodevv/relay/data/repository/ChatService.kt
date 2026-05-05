@@ -59,6 +59,7 @@ class ChatService @Inject constructor(
 
         // If streaming produced no content, fall back to non-streaming
         if (!hasEmittedContent) {
+            android.util.Log.d("RelayStream", "Streaming produced no content. Falling back to non-streaming.")
             val nonStreamRequest = request.copy(stream = false)
             val result = api.sendChatCompletion(
                 baseUrl = provider.apiBaseUrl,
@@ -67,7 +68,10 @@ class ChatService @Inject constructor(
                 request = nonStreamRequest
             )
             result.getOrNull()?.choices?.firstOrNull()?.message?.content?.let {
-                if (it.isNotEmpty()) emit(it)
+                if (it.isNotEmpty()) {
+                    android.util.Log.d("RelayStream", "Fallback emitted ${it.length} chars")
+                    emit(it)
+                }
             }
         }
     }

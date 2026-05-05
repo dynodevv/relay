@@ -14,7 +14,7 @@ _None currently tracked._
 
 ### Streaming Responses Are Inconsistent
 
-**Status:** Known issue — non-streaming fallback works reliably  
+**Status:** Partially fixed — parser is now significantly more robust; remaining inconsistency is likely server-side buffering  
 **Severity:** Low — chat is fully usable via non-streaming fallback
 
 **Description:**  
@@ -25,15 +25,22 @@ When sending a message, the response sometimes streams token-by-token in real-ti
 - Most of the time doesn't work — you wait a few seconds, then the full response pops in at once
 - The non-streaming fallback always delivers the complete response
 
-**Possible causes:**
-1. SSE (`bodyAsChannel()`) parsing may drop chunks depending on network timing
-2. Some providers may send chunks in a format the parser doesn't always catch
-3. Ktor's byte channel read might consume partial lines or buffer data
+**Fixes applied (2026-05-05):**
+1. Rewrote SSE parser to be spec-compliant — properly accumulates multi-line `data:` fields into single events
+2. Handle `data:` prefix with or without space (SSE spec allows both)
+3. Handle pretty-printed JSON responses when a provider ignores `stream=true` (multi-line JSON accumulation)
+4. Strip UTF-8 BOM from line starts
+5. Replaced `while (!channel.isClosedForRead)` with `while (true) { readUTF8Line() ?: break }` to avoid race conditions
+6. Added comprehensive debug logging (`RelaySSE` / `RelayStream` tags) — no more silent parse failures
+7. Log fallback trigger and emitted chunk previews for field diagnosis
 
-**Next steps (when prioritized):**
-- Add debug logging to trace exactly what bytes arrive on each stream
-- Consider switching to Ktor's built-in SSE plugin or a more robust parser
-- Add retry logic specifically for the streaming path
+**Remaining possible causes:**
+- Some providers or network paths buffer the entire HTTP response before delivering it to the client (OS-level or mobile-network buffering). This is outside app control.
+- Some providers may ignore `stream=true` and return a non-streaming response; the fallback handles this.
+
+**Next steps:**
+- Monitor logs from real-world usage (filter `tag:RelaySSE` or `tag:RelayStream`) to confirm parser handles all provider formats
+- If logs show chunks arriving but UI not updating, investigate further upstream (Ktor engine / network stack)
 
 ---
 
