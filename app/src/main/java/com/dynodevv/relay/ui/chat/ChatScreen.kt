@@ -44,7 +44,6 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -88,25 +87,9 @@ fun ChatScreen(
         viewModel.loadConversation(conversationId)
     }
 
-    val lastMessage = uiState.messages.lastOrNull()
-    val isNearBottom by remember {
-        derivedStateOf {
-            val layoutInfo = listState.layoutInfo
-            val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            val totalItems = layoutInfo.totalItemsCount
-            lastVisibleIndex >= totalItems - 2
-        }
-    }
-
     LaunchedEffect(uiState.messages.size) {
-        if (uiState.messages.isNotEmpty() && isNearBottom) {
-            listState.animateScrollToItem(uiState.messages.size - 1)
-        }
-    }
-
-    LaunchedEffect(lastMessage?.content) {
-        if (uiState.messages.isNotEmpty() && uiState.isLoading && isNearBottom) {
-            listState.scrollToItem(uiState.messages.size - 1)
+        if (uiState.messages.isNotEmpty()) {
+            listState.animateScrollToItem(0)
         }
     }
 
@@ -237,10 +220,10 @@ fun ChatScreen(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(vertical = 8.dp),
-                        reverseLayout = false
+                        reverseLayout = true
                     ) {
                         items(
-                            items = uiState.messages,
+                            items = uiState.messages.reversed(),
                             key = { it.id }
                         ) { message ->
                             MessageBubble(
