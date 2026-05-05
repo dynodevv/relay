@@ -1,7 +1,9 @@
 package com.dynodevv.relay.ui.chat.components
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -84,10 +86,14 @@ fun MessageBubble(
             } else {
                 MaterialTheme.colorScheme.surfaceVariant
             },
-            tonalElevation = if (isUser) 0.dp else 2.dp,
-            onClick = { showActions = !showActions }
+            tonalElevation = if (isUser) 0.dp else 2.dp
         ) {
-            Column {
+            Column(
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { showActions = !showActions }
+            ) {
                 Box(modifier = Modifier.padding(14.dp)) {
                     if (isUser) {
                         Text(

@@ -12,18 +12,7 @@ _None currently tracked._
 
 ## Minor
 
-### Long Assistant Messages Don't Toggle Action Controls When Tapped Near the Bottom
-
-**Status:** Open  
-**Severity:** Low — controls still work by tapping the upper portion of the message
-
-**Description:**  
-When an assistant message bubble is very long (exceeding a certain height), tapping the lower portion of the bubble no longer toggles the copy/regenerate/delete action controls. Tapping the upper portion of the same message still works. The clickable area of the `Surface` appears to not cover the full height of long content.
-
-**Possible fixes:**
-- Investigate whether the `Surface` onClick gesture area gets clipped for tall composables
-- Move action controls to a context menu / long-press menu instead of inline toggle
-- Try wrapping the message content in a separate clickable modifier with `clickable` instead of relying on Surface's built-in onClick
+_None currently tracked._
 
 ---
 
@@ -32,6 +21,7 @@ When an assistant message bubble is very long (exceeding a certain height), tapp
 | Issue | Resolution |
 |---|---|
 | **Streaming Responses Are Inconsistent** | **Fixed!** Client-side word-by-word emission guarantees typing effect regardless of server buffering. Markdown renders after streaming completes. |
+| **Long Assistant Messages Don't Toggle Action Controls When Tapped Near the Bottom** | **Fixed!** Replaced `Surface`'s built-in `onClick` with `Modifier.clickable` on the inner `Column` so the full bounds of tall content remain tappable. |
 | **Auto-scroll breaks during long streaming messages** | **Fixed!** Instant scroll during streaming, animated scroll for new messages. Disabled `animateContentSize` on streaming bubbles. Only auto-scrolls when user is near the bottom. |
 | **AI Assistant Messages Appear Empty** | **Fixed!** Triple-layer fix: (1) SSE parser now handles raw JSON lines, (2) content extraction falls back from `delta.content` to `message.content`, (3) replaced Markdown renderer with plain Text composable |
 | **Google Sans Flex roundness (ROND) not applied everywhere** | **Fixed!** Added `wght` axis to `FontVariation.Settings` for all `GoogleSansFlex` and `GoogleSansCode` entries so variable font weight matching works correctly and the system doesn't fall back to non-rounded system fonts |
