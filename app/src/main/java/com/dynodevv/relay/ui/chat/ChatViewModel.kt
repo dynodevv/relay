@@ -12,13 +12,13 @@ import com.dynodevv.relay.domain.model.MessageRole
 import com.dynodevv.relay.domain.model.Provider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.yield
 import javax.inject.Inject
 
 data class ChatUiState(
@@ -156,14 +156,17 @@ class ChatViewModel @Inject constructor(
                     .filter { !it.isError && it.id != assistantMessageId }
 
                 var accumulated = ""
+                var chunkCount = 0
                 chatService.streamResponse(
                     provider = provider,
                     modelId = modelId,
                     messages = history,
                     conversationId = conversationId
                 ).collect { chunk ->
+                    chunkCount++
                     accumulated += chunk
                     assistantMessage = assistantMessage.copy(content = accumulated, isStreaming = true)
+                    android.util.Log.d("RelayUI", "Chunk #$chunkCount received (${chunk.length} chars). Total: ${accumulated.length}")
                     _uiState.update { state ->
                         state.copy(
                             messages = state.messages.map { msg ->
@@ -171,8 +174,9 @@ class ChatViewModel @Inject constructor(
                             }
                         )
                     }
-                    yield() // Force UI thread to render between chunks
+                    delay(16) // Force at least one frame render between chunks
                 }
+                android.util.Log.d("RelayUI", "Streaming complete. $chunkCount chunks, ${accumulated.length} total chars")
 
                 // Final DB write only after streaming completes
                 messageRepository.updateMessageContent(assistantMessageId, accumulated, isStreaming = false)
@@ -274,14 +278,17 @@ class ChatViewModel @Inject constructor(
                     .filter { !it.isError }
 
                 var accumulated = ""
+                var chunkCount = 0
                 chatService.streamResponse(
                     provider = provider,
                     modelId = modelId,
                     messages = history,
                     conversationId = conversationId
                 ).collect { chunk ->
+                    chunkCount++
                     accumulated += chunk
                     assistantMessage = assistantMessage.copy(content = accumulated, isStreaming = true)
+                    android.util.Log.d("RelayUI", "Chunk #$chunkCount received (${chunk.length} chars). Total: ${accumulated.length}")
                     _uiState.update { state ->
                         state.copy(
                             messages = state.messages.map { msg ->
@@ -289,8 +296,9 @@ class ChatViewModel @Inject constructor(
                             }
                         )
                     }
-                    yield() // Force UI thread to render between chunks
+                    delay(16) // Force at least one frame render between chunks
                 }
+                android.util.Log.d("RelayUI", "Streaming complete. $chunkCount chunks, ${accumulated.length} total chars")
 
                 messageRepository.updateMessageContent(assistantMessageId, accumulated, isStreaming = false)
                 assistantMessage = assistantMessage.copy(content = accumulated, isStreaming = false)

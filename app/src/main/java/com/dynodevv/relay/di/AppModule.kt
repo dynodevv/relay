@@ -38,8 +38,11 @@ object AppModule {
             }
             engine {
                 config {
-                    protocols(listOf(Protocol.HTTP_2, Protocol.HTTP_1_1))
+                    // HTTP/1.1 only for SSE — HTTP/2 multiplexing can cause proxy buffering
+                    protocols(listOf(Protocol.HTTP_1_1))
                     retryOnConnectionFailure(true)
+                    // SSE needs infinite read timeout — server may pause between tokens
+                    readTimeout(0, java.util.concurrent.TimeUnit.SECONDS)
                 }
             }
         }

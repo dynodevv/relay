@@ -41,13 +41,22 @@ When sending a message, the response sometimes streams token-by-token in real-ti
 11. Added simulated word-by-word fallback streaming with 12ms delays for a natural typing effect when the server doesn't stream
 12. Hybrid SSE parser: single-line events are emitted immediately without waiting for blank lines
 
-**Remaining possible causes:**
-- Some providers or network paths buffer the entire HTTP response before delivering it to the client (OS-level or mobile-network buffering). This is outside app control.
-- Some providers may ignore `stream=true` and return a non-streaming response; the fallback now simulates a typing effect.
+**Fixes applied (2026-05-05, round 3):**
+13. Force HTTP/1.1 only — HTTP/2 multiplexing can cause proxy/CDN buffering of SSE responses
+14. Add `readTimeout(0)` for SSE connections (infinite timeout — servers may pause between tokens)
+15. Replace `yield()` with `delay(16)` in ViewModel — `yield()` on `Dispatchers.Main.immediate` may not post to the handler; `delay(16)` forces at least one frame per chunk
+16. Fix auto-scroll to trigger on `lastMessage?.content` changes, not just `messages.size`
+17. Render streaming messages with plain `Text` instead of `Markdown` — `Markdown` may skip intermediate recompositions due to expensive parsing; switches to `Markdown` only after `isStreaming = false`
+18. Add `RelayUI` debug logging in ViewModel to count chunks and track arrival
 
-**Next steps:**
-- Monitor logs from real-world usage (filter `tag:RelaySSE` or `tag:RelayStream`) to confirm chunks arrive incrementally
-- If streaming still fails with OkHttp, consider switching to Ktor CIO engine or investigating provider-specific behavior
+**Remaining possible causes:**
+- Server genuinely does not stream (ignores `stream=true` or buffers response server-side). The simulated fallback provides a typing effect.
+- OkHttp or Ktor may still buffer the response body despite HTTP/1.1. Check `tag:RelaySSE` logs to confirm whether chunks arrive incrementally.
+
+**Diagnosing:**
+- `tag:RelaySSE`: shows each line read from the SSE stream — if lines appear in a burst, the server is buffering
+- `tag:RelayStream`: shows when fallback triggers and how many chars are emitted
+- `tag:RelayUI`: shows chunk count and total chars as the ViewModel receives them — if this increments slowly, the UI layer is working
 
 ---
 

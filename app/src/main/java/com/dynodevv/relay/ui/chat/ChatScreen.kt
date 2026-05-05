@@ -87,7 +87,8 @@ fun ChatScreen(
         viewModel.loadConversation(conversationId)
     }
 
-    LaunchedEffect(uiState.messages.size, uiState.isLoading) {
+    val lastMessage = uiState.messages.lastOrNull()
+    LaunchedEffect(uiState.messages.size, uiState.isLoading, lastMessage?.content) {
         if (uiState.messages.isNotEmpty()) {
             listState.animateScrollToItem(uiState.messages.size - 1)
         }
