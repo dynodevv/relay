@@ -4,6 +4,11 @@
 
 ---
 
+## Git Workflow
+
+- **Push automatically.** After finishing changes, stage, commit, and push to `origin/main` without waiting for explicit confirmation. The user expects the repo to stay up to date.
+- Use `--no-edit` for simple fixup amends; rewrite commit messages only when the change meaningfully shifts.
+
 ## Build & CI
 
 - **Do NOT build locally.** The project has no local Android SDK setup. All builds run via [GitHub Actions](.github/workflows/build.yml).
