@@ -7,8 +7,8 @@ import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.Provider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -36,6 +36,7 @@ class ChatService @Inject constructor(
         )
 
         var hasEmittedContent = false
+        val accumulated = StringBuilder()
 
         api.streamChatCompletion(
             baseUrl = provider.apiBaseUrl,
@@ -52,13 +53,18 @@ class ChatService @Inject constructor(
                         ?: ""
                     if (content.isNotEmpty()) {
                         hasEmittedContent = true
-                        emit(content)
+                        accumulated.append(content)
                     }
                 }
             }
         }
 
-        // If streaming produced no content, fall back to non-streaming
+        if (hasEmittedContent && accumulated.isNotEmpty()) {
+            val fullText = accumulated.toString()
+            android.util.Log.d("RelayStream", "Streaming collected ${fullText.length} chars, emitting word-by-word")
+            emitWordByWord(fullText)
+        }
+
         if (!hasEmittedContent) {
             android.util.Log.d("RelayStream", "Streaming produced no content. Falling back to non-streaming.")
             val nonStreamRequest = request.copy(stream = false)
@@ -70,14 +76,26 @@ class ChatService @Inject constructor(
             )
             result.getOrNull()?.choices?.firstOrNull()?.message?.content?.let { fullText ->
                 if (fullText.isNotEmpty()) {
-                    android.util.Log.d("RelayStream", "Fallback: simulating streaming for ${fullText.length} chars")
-                    val words = fullText.split(" ")
-                    for ((index, word) in words.withIndex()) {
-                        emit(word + if (index < words.size - 1) " " else "")
-                        delay(12) // ~80 words/sec typing effect
-                    }
+                    android.util.Log.d("RelayStream", "Fallback: emitting ${fullText.length} chars word-by-word")
+                    emitWordByWord(fullText)
                 }
             }
+        }
+    }
+
+    private suspend fun FlowCollector<String>.emitWordByWord(text: String) {
+        var lastBoundary = 0
+        for (i in text.indices) {
+            val c = text[i]
+            if (c == ' ' || c == '\n') {
+                val end = i + 1
+                emit(text.substring(lastBoundary, end))
+                lastBoundary = end
+                delay(12)
+            }
+        }
+        if (lastBoundary < text.length) {
+            emit(text.substring(lastBoundary))
         }
     }
 

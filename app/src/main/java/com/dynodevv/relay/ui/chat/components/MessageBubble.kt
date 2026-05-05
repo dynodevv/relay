@@ -97,13 +97,19 @@ fun MessageBubble(
                         )
                     } else {
                         if (message.isStreaming) {
-                            // Use plain Text during streaming — Markdown is expensive and may
-                            // skip intermediate recompositions. Switch to Markdown after done.
-                            Text(
-                                text = message.content,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            if (message.content.isEmpty()) {
+                                Text(
+                                    text = "Thinking\u2026",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
+                            } else {
+                                Text(
+                                    text = message.content,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         } else {
                             Markdown(
                                 content = message.content,
