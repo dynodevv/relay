@@ -12,18 +12,18 @@ _None currently tracked._
 
 ## Minor
 
-### Long Assistant Messages Push Action Controls Off-Screen
+### Long Assistant Messages Don't Toggle Action Controls When Tapped Near the Bottom
 
 **Status:** Open  
-**Severity:** Low — controls are still accessible by scrolling down or tapping the message to reveal them
+**Severity:** Low — controls still work by tapping the upper portion of the message
 
 **Description:**  
-When an assistant message is very long (taller than the viewport), tapping the message bubble reveals copy/regenerate/delete action controls at the bottom of the bubble. These controls may be pushed off-screen by the message content, requiring the user to scroll down within the chat to reach them.
+When an assistant message bubble is very long (exceeding a certain height), tapping the lower portion of the bubble no longer toggles the copy/regenerate/delete action controls. Tapping the upper portion of the same message still works. The clickable area of the `Surface` appears to not cover the full height of long content.
 
 **Possible fixes:**
-- Move action controls to a top bar or overlay menu instead of inline at the bottom of the bubble
-- Show actions in a bottom sheet or popup anchored to the tap position
-- Make the message bubble scrollable independently and pin actions at the bottom of the viewport
+- Investigate whether the `Surface` onClick gesture area gets clipped for tall composables
+- Move action controls to a context menu / long-press menu instead of inline toggle
+- Try wrapping the message content in a separate clickable modifier with `clickable` instead of relying on Surface's built-in onClick
 
 ---
 
