@@ -72,7 +72,7 @@ fun MessageBubble(
         Surface(
             modifier = Modifier
                 .widthIn(max = maxWidth)
-                .animateContentSize(),
+                .then(if (message.isStreaming) Modifier else Modifier.animateContentSize()),
             shape = RoundedCornerShape(
                 topStart = 20.dp,
                 topEnd = 20.dp,

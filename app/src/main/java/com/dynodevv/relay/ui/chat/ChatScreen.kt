@@ -44,6 +44,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -88,9 +89,24 @@ fun ChatScreen(
     }
 
     val lastMessage = uiState.messages.lastOrNull()
-    LaunchedEffect(uiState.messages.size, uiState.isLoading, lastMessage?.content) {
-        if (uiState.messages.isNotEmpty()) {
+    val isNearBottom by remember {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            val totalItems = layoutInfo.totalItemsCount
+            lastVisibleIndex >= totalItems - 2
+        }
+    }
+
+    LaunchedEffect(uiState.messages.size) {
+        if (uiState.messages.isNotEmpty() && isNearBottom) {
             listState.animateScrollToItem(uiState.messages.size - 1)
+        }
+    }
+
+    LaunchedEffect(lastMessage?.content) {
+        if (uiState.messages.isNotEmpty() && uiState.isLoading && isNearBottom) {
+            listState.scrollToItem(uiState.messages.size - 1)
         }
     }
 
