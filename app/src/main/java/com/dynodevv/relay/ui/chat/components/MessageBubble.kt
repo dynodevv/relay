@@ -1,9 +1,8 @@
 package com.dynodevv.relay.ui.chat.components
 
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +19,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.AnnotatedString
@@ -62,8 +64,8 @@ fun MessageBubble(
 ) {
     val isUser = message.role is MessageRole.User
     val clipboardManager = LocalClipboardManager.current
-    var showActions by remember { mutableStateOf(false) }
     val maxWidth = LocalConfiguration.current.screenWidthDp.dp * 0.85f
+    var showMenu by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -71,117 +73,121 @@ fun MessageBubble(
             .padding(horizontal = 12.dp, vertical = 4.dp),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
-        Surface(
+        Box(
             modifier = Modifier
                 .widthIn(max = maxWidth)
-                .then(if (message.isStreaming) Modifier else Modifier.animateContentSize()),
-            shape = RoundedCornerShape(
-                topStart = 20.dp,
-                topEnd = 20.dp,
-                bottomStart = if (isUser) 20.dp else 4.dp,
-                bottomEnd = if (isUser) 4.dp else 20.dp
-            ),
-            color = if (isUser) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            },
-            tonalElevation = if (isUser) 0.dp else 2.dp
+                .pointerInput(Unit) {
+                    detectTapGestures(onLongPress = { showMenu = true })
+                }
         ) {
-            Column(
-                modifier = Modifier.clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { showActions = !showActions }
+            Surface(
+                modifier = if (message.isStreaming) Modifier else Modifier.animateContentSize(),
+                shape = RoundedCornerShape(
+                    topStart = 20.dp,
+                    topEnd = 20.dp,
+                    bottomStart = if (isUser) 20.dp else 4.dp,
+                    bottomEnd = if (isUser) 4.dp else 20.dp
+                ),
+                color = if (isUser) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                },
+                tonalElevation = if (isUser) 0.dp else 2.dp
             ) {
-                Box(modifier = Modifier.padding(14.dp)) {
-                    if (isUser) {
-                        Text(
-                            text = message.content,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    } else {
-                        if (message.isStreaming) {
-                            if (message.content.isEmpty()) {
-                                Text(
-                                    text = "Thinking\u2026",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                )
-                            } else {
-                                Text(
-                                    text = message.content,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                Column {
+                    Box(modifier = Modifier.padding(14.dp)) {
+                        if (isUser) {
+                            Text(
+                                text = message.content,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         } else {
-                            Markdown(
-                                content = message.content,
-                                modifier = Modifier,
-                                colors = markdownColor(
-                                    text = MaterialTheme.colorScheme.onSurfaceVariant
-                                ),
-                                typography = markdownTypography(
-                                    code = MaterialTheme.typography.bodyMedium.copy(
-                                        fontFamily = GoogleSansCode
-                                    ),
-                                    inlineCode = MaterialTheme.typography.bodyMedium.copy(
-                                        fontFamily = GoogleSansCode
+                            if (message.isStreaming) {
+                                if (message.content.isEmpty()) {
+                                    Text(
+                                        text = "Thinking\u2026",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                     )
-                                ),
-                                components = markdownComponents(
-                                    codeBlock = {
-                                        MarkdownCodeBlock(it.content, it.node) { code, _ ->
-                                            CodeBlockWithCopy(code)
+                                } else {
+                                    Text(
+                                        text = message.content,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            } else {
+                                Markdown(
+                                    content = message.content,
+                                    modifier = Modifier,
+                                    colors = markdownColor(
+                                        text = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    typography = markdownTypography(
+                                        code = MaterialTheme.typography.bodyMedium.copy(
+                                            fontFamily = GoogleSansCode
+                                        ),
+                                        inlineCode = MaterialTheme.typography.bodyMedium.copy(
+                                            fontFamily = GoogleSansCode
+                                        )
+                                    ),
+                                    components = markdownComponents(
+                                        codeBlock = {
+                                            MarkdownCodeBlock(it.content, it.node) { code, _ ->
+                                                CodeBlockWithCopy(code)
+                                            }
+                                        },
+                                        codeFence = {
+                                            MarkdownCodeFence(it.content, it.node) { code, _ ->
+                                                CodeBlockWithCopy(code)
+                                            }
                                         }
-                                    },
-                                    codeFence = {
-                                        MarkdownCodeFence(it.content, it.node) { code, _ ->
-                                            CodeBlockWithCopy(code)
-                                        }
-                                    }
-                                )
-                            )
-                        }
-                    }
-                }
-
-                if (showActions) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        IconButton(onClick = {
-                            clipboardManager.setText(AnnotatedString(message.content))
-                        }) {
-                            Icon(
-                                Icons.Default.ContentCopy,
-                                contentDescription = "Copy",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        if (!isUser) {
-                            IconButton(onClick = onRegenerate) {
-                                Icon(
-                                    Icons.Default.Refresh,
-                                    contentDescription = "Regenerate",
-                                    modifier = Modifier.size(18.dp)
+                                    )
                                 )
                             }
                         }
-                        IconButton(onClick = onDelete) {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = "Delete",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
                     }
                 }
+            }
+
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Copy") },
+                    leadingIcon = {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null)
+                    },
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(message.content))
+                        showMenu = false
+                    }
+                )
+                if (!isUser) {
+                    DropdownMenuItem(
+                        text = { Text("Regenerate") },
+                        leadingIcon = {
+                            Icon(Icons.Default.Refresh, contentDescription = null)
+                        },
+                        onClick = {
+                            onRegenerate()
+                            showMenu = false
+                        }
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text("Delete") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Delete, contentDescription = null)
+                    },
+                    onClick = {
+                        onDelete()
+                        showMenu = false
+                    }
+                )
             }
         }
     }
