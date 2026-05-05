@@ -5,6 +5,7 @@ import com.dynodevv.relay.data.remote.dto.ChatRequestDto
 import com.dynodevv.relay.data.remote.dto.MessageDto
 import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.Provider
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -67,10 +68,14 @@ class ChatService @Inject constructor(
                 apiKey = provider.apiKey,
                 request = nonStreamRequest
             )
-            result.getOrNull()?.choices?.firstOrNull()?.message?.content?.let {
-                if (it.isNotEmpty()) {
-                    android.util.Log.d("RelayStream", "Fallback emitted ${it.length} chars")
-                    emit(it)
+            result.getOrNull()?.choices?.firstOrNull()?.message?.content?.let { fullText ->
+                if (fullText.isNotEmpty()) {
+                    android.util.Log.d("RelayStream", "Fallback: simulating streaming for ${fullText.length} chars")
+                    val words = fullText.split(" ")
+                    for ((index, word) in words.withIndex()) {
+                        emit(word + if (index < words.size - 1) " " else "")
+                        delay(12) // ~80 words/sec typing effect
+                    }
                 }
             }
         }

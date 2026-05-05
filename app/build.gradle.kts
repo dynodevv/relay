@@ -109,7 +109,7 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
 
     // Ktor
-    implementation("io.ktor:ktor-client-android:3.0.3")
+    implementation("io.ktor:ktor-client-okhttp:3.0.3")
     implementation("io.ktor:ktor-client-content-negotiation:3.0.3")
     implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.3")
     implementation("io.ktor:ktor-client-logging:3.0.3")

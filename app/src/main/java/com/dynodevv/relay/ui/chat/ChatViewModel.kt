@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import javax.inject.Inject
 
 data class ChatUiState(
@@ -170,6 +171,7 @@ class ChatViewModel @Inject constructor(
                             }
                         )
                     }
+                    yield() // Force UI thread to render between chunks
                 }
 
                 // Final DB write only after streaming completes
@@ -287,6 +289,7 @@ class ChatViewModel @Inject constructor(
                             }
                         )
                     }
+                    yield() // Force UI thread to render between chunks
                 }
 
                 messageRepository.updateMessageContent(assistantMessageId, accumulated, isStreaming = false)

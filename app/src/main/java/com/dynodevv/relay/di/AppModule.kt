@@ -10,12 +10,13 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.android.Android
+import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
+import okhttp3.Protocol
 import javax.inject.Singleton
 
 @Module
@@ -25,7 +26,7 @@ object AppModule {
     @Provides
     @Singleton
     fun provideHttpClient(): HttpClient {
-        return HttpClient(Android) {
+        return HttpClient(OkHttp) {
             install(ContentNegotiation) {
                 json(Json {
                     ignoreUnknownKeys = true
@@ -36,8 +37,10 @@ object AppModule {
                 level = LogLevel.NONE
             }
             engine {
-                connectTimeout = 30000
-                socketTimeout = 30000
+                config {
+                    protocols(listOf(Protocol.HTTP_2, Protocol.HTTP_1_1))
+                    retryOnConnectionFailure(true)
+                }
             }
         }
     }

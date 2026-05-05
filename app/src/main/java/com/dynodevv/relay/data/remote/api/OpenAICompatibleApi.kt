@@ -71,6 +71,8 @@ class OpenAICompatibleApi @Inject constructor(
                 contentType(ContentType.Application.Json)
                 apiKey?.let { bearerAuth(it) }
                 header("Accept", "text/event-stream")
+                header("Cache-Control", "no-cache")
+                header("X-Accel-Buffering", "no")
                 // OpenRouter-specific headers
                 header("HTTP-Referer", "https://github.com/dynodevv/relay")
                 header("X-Title", "Relay")
@@ -108,7 +110,7 @@ class OpenAICompatibleApi @Inject constructor(
                         parseSseEvent(eventData)?.let { chunk ->
                             val preview = chunk.choices?.firstOrNull()?.delta?.content?.take(30)
                                 ?: chunk.choices?.firstOrNull()?.message?.content?.take(30)
-                            android.util.Log.d("RelaySSE", "Emitted SSE chunk. Preview: $preview")
+                            android.util.Log.d("RelaySSE", "Emitted buffered SSE chunk. Preview: $preview")
                             emit(chunk)
                         }
                     }
@@ -118,11 +120,30 @@ class OpenAICompatibleApi @Inject constructor(
                 // SSE data field: "data: ..." or "data:..."
                 if (trimmedLine.startsWith("data:")) {
                     val data = trimmedLine.substringAfter("data:").removePrefix(" ").removePrefix("\t")
-                    if (eventDataBuffer.isNotEmpty()) {
-                        eventDataBuffer.append("\n")
+
+                    if (data == "[DONE]") {
+                        android.util.Log.d("RelaySSE", "Received [DONE]")
+                        eventDataBuffer.clear()
+                        continue
                     }
-                    eventDataBuffer.append(data)
-                    continue
+
+                    // Most SSE events are single-line JSON — try to emit immediately
+                    try {
+                        val chunk = json.decodeFromString<ChatResponseDto>(data)
+                        val preview = chunk.choices?.firstOrNull()?.delta?.content?.take(30)
+                            ?: chunk.choices?.firstOrNull()?.message?.content?.take(30)
+                        android.util.Log.d("RelaySSE", "Emitted immediate SSE chunk. Preview: $preview")
+                        eventDataBuffer.clear() // Clear any stale buffer
+                        emit(chunk)
+                        continue
+                    } catch (_: Exception) {
+                        // Not valid JSON alone — buffer for multi-line event
+                        if (eventDataBuffer.isNotEmpty()) {
+                            eventDataBuffer.append("\n")
+                        }
+                        eventDataBuffer.append(data)
+                        continue
+                    }
                 }
 
                 // Raw JSON line (non-SSE response, e.g. provider ignored stream=true)

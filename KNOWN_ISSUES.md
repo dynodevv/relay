@@ -34,13 +34,20 @@ When sending a message, the response sometimes streams token-by-token in real-ti
 6. Added comprehensive debug logging (`RelaySSE` / `RelayStream` tags) — no more silent parse failures
 7. Log fallback trigger and emitted chunk previews for field diagnosis
 
+**Fixes applied (2026-05-05, round 2):**
+8. Switched Ktor engine from Android (`HttpURLConnection`) to OkHttp — OkHttp has significantly better streaming support with smaller response buffering
+9. Added anti-buffering headers (`Cache-Control: no-cache`, `X-Accel-Buffering: no`) to discourage proxy buffering
+10. Added `yield()` in ViewModel's collect loop to force the Main thread to render UI between chunks
+11. Added simulated word-by-word fallback streaming with 12ms delays for a natural typing effect when the server doesn't stream
+12. Hybrid SSE parser: single-line events are emitted immediately without waiting for blank lines
+
 **Remaining possible causes:**
 - Some providers or network paths buffer the entire HTTP response before delivering it to the client (OS-level or mobile-network buffering). This is outside app control.
-- Some providers may ignore `stream=true` and return a non-streaming response; the fallback handles this.
+- Some providers may ignore `stream=true` and return a non-streaming response; the fallback now simulates a typing effect.
 
 **Next steps:**
-- Monitor logs from real-world usage (filter `tag:RelaySSE` or `tag:RelayStream`) to confirm parser handles all provider formats
-- If logs show chunks arriving but UI not updating, investigate further upstream (Ktor engine / network stack)
+- Monitor logs from real-world usage (filter `tag:RelaySSE` or `tag:RelayStream`) to confirm chunks arrive incrementally
+- If streaming still fails with OkHttp, consider switching to Ktor CIO engine or investigating provider-specific behavior
 
 ---
 

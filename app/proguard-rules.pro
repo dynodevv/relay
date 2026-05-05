@@ -64,3 +64,9 @@
 # Markdown renderer
 -keep class com.mikepenz.markdown.** { *; }
 -dontwarn com.mikepenz.markdown.**
+
+# OkHttp
+-keep class okhttp3.** { *; }
+-dontwarn okhttp3.**
+-keep class okio.** { *; }
+-dontwarn okio.**
