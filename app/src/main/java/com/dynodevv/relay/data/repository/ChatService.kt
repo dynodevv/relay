@@ -2,7 +2,8 @@ package com.dynodevv.relay.data.repository
 
 import com.dynodevv.relay.data.remote.api.OpenAICompatibleApi
 import com.dynodevv.relay.data.remote.dto.ChatRequestDto
-import com.dynodevv.relay.data.remote.dto.MessageDto
+import com.dynodevv.relay.data.remote.dto.textMessageDto
+import com.dynodevv.relay.data.remote.dto.visionMessageDto
 import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.Provider
 import kotlinx.coroutines.delay
@@ -28,7 +29,11 @@ class ChatService @Inject constructor(
         val request = ChatRequestDto(
             model = modelId,
             messages = messages.map {
-                MessageDto(role = it.roleString, content = it.content)
+                if (it.imageUri != null) {
+                    visionMessageDto(role = it.roleString, text = it.content, imageBase64 = it.imageUri)
+                } else {
+                    textMessageDto(role = it.roleString, text = it.content)
+                }
             },
             stream = true,
             temperature = temperature,
@@ -48,9 +53,9 @@ class ChatService @Inject constructor(
                 chunk.error != null -> throw Exception(chunk.error.message)
                 else -> {
                     val choice = chunk.choices?.firstOrNull()
-                    val content = choice?.delta?.content
-                        ?: choice?.message?.content
-                        ?: ""
+                    val deltaContent = choice?.delta?.content
+                    val messageContent = (choice?.message?.content as? kotlinx.serialization.json.JsonPrimitive)?.content
+                    val content = deltaContent ?: messageContent ?: ""
                     if (content.isNotEmpty()) {
                         hasEmittedContent = true
                         accumulated.append(content)
@@ -74,7 +79,8 @@ class ChatService @Inject constructor(
                 apiKey = provider.apiKey,
                 request = nonStreamRequest
             )
-            result.getOrNull()?.choices?.firstOrNull()?.message?.content?.let { fullText ->
+            result.getOrNull()?.choices?.firstOrNull()?.message?.content?.let { contentElement ->
+                val fullText = (contentElement as? kotlinx.serialization.json.JsonPrimitive)?.content ?: ""
                 if (fullText.isNotEmpty()) {
                     android.util.Log.d("RelayStream", "Fallback: emitting ${fullText.length} chars word-by-word")
                     emitWordByWord(fullText)
@@ -103,11 +109,11 @@ class ChatService @Inject constructor(
         val request = ChatRequestDto(
             model = modelId,
             messages = listOf(
-                MessageDto(
+                textMessageDto(
                     role = "system",
-                    content = "Generate a very short title (max 4 words) for a chat that starts with this message. Reply with only the title, no quotes."
+                    text = "Generate a very short title (max 4 words) for a chat that starts with this message. Reply with only the title, no quotes."
                 ),
-                MessageDto(role = "user", content = firstUserMessage)
+                textMessageDto(role = "user", text = firstUserMessage)
             ),
             stream = false,
             temperature = 0.7,
@@ -119,7 +125,7 @@ class ChatService @Inject constructor(
             apiPath = provider.apiPath,
             apiKey = provider.apiKey,
             request = request
-        ).getOrNull()?.choices?.firstOrNull()?.message?.content?.trim()?.take(40)
+        ).getOrNull()?.choices?.firstOrNull()?.message?.content?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }?.trim()?.take(40)
             ?: "New Chat"
     }
 }

@@ -18,12 +18,16 @@ class MessageRepository @Inject constructor(
             list.map { it.toDomain() }
         }
 
-    suspend fun addMessage(conversationId: Long, role: MessageRole, content: String, isStreaming: Boolean = false): Long {
+    suspend fun getMessagesOnce(conversationId: Long): List<Message> =
+        messageDao.getByConversationOnce(conversationId).map { it.toDomain() }
+
+    suspend fun addMessage(conversationId: Long, role: MessageRole, content: String, imageUri: String? = null, isStreaming: Boolean = false): Long {
         return messageDao.insert(
             MessageEntity(
                 conversationId = conversationId,
                 role = roleString(role),
                 content = content,
+                imageUri = imageUri,
                 isStreaming = isStreaming
             )
         )
@@ -46,6 +50,7 @@ class MessageRepository @Inject constructor(
         conversationId = conversationId,
         role = MessageRole.fromString(role),
         content = content,
+        imageUri = imageUri,
         createdAt = createdAt,
         isError = isError,
         isStreaming = isStreaming

@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -39,8 +40,12 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.mikepenz.markdown.compose.LocalMarkdownColors
 import com.mikepenz.markdown.compose.LocalMarkdownDimens
 import com.mikepenz.markdown.compose.LocalMarkdownPadding
@@ -57,12 +62,16 @@ import com.dynodevv.relay.domain.model.MessageRole
 import com.dynodevv.relay.ui.theme.GoogleSansCode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun MessageBubble(
     message: Message,
     onDelete: () -> Unit,
-    onRegenerate: () -> Unit
+    onRegenerate: () -> Unit,
+    onEdit: () -> Unit = {}
 ) {
     val isUser = message.role is MessageRole.User
     val clipboardManager = LocalClipboardManager.current
@@ -70,6 +79,7 @@ fun MessageBubble(
     val maxWidth = LocalConfiguration.current.screenWidthDp.dp * 0.85f
     var showMenu by remember { mutableStateOf(false) }
     var menuOffset by remember { mutableStateOf(DpOffset.Zero) }
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
     Row(
         modifier = Modifier
@@ -77,10 +87,12 @@ fun MessageBubble(
             .padding(horizontal = 12.dp, vertical = 4.dp),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
-        Box(
-            modifier = Modifier
-                .widthIn(max = maxWidth)
-                .pointerInput(Unit) {
+        Column(
+            modifier = Modifier.widthIn(max = maxWidth),
+            horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
+        ) {
+            Box(
+                modifier = Modifier.pointerInput(Unit) {
                     detectTapGestures(onLongPress = { offset ->
                         menuOffset = with(density) {
                             DpOffset(offset.x.toDp(), offset.y.toDp())
@@ -88,123 +100,150 @@ fun MessageBubble(
                         showMenu = true
                     })
                 }
-        ) {
-            Surface(
-                modifier = if (message.isStreaming) Modifier else Modifier.animateContentSize(),
-                shape = RoundedCornerShape(
-                    topStart = 20.dp,
-                    topEnd = 20.dp,
-                    bottomStart = if (isUser) 20.dp else 4.dp,
-                    bottomEnd = if (isUser) 4.dp else 20.dp
-                ),
-                color = if (isUser) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant
-                },
-                tonalElevation = if (isUser) 0.dp else 2.dp
             ) {
-                Column {
-                    Box(modifier = Modifier.padding(14.dp)) {
-                        if (isUser) {
-                            Text(
-                                text = message.content,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        } else {
-                            if (message.isStreaming) {
-                                if (message.content.isEmpty()) {
+                Surface(
+                    modifier = if (message.isStreaming) Modifier else Modifier.animateContentSize(),
+                    shape = RoundedCornerShape(
+                        topStart = 20.dp,
+                        topEnd = 20.dp,
+                        bottomStart = if (isUser) 20.dp else 4.dp,
+                        bottomEnd = if (isUser) 4.dp else 20.dp
+                    ),
+                    color = if (isUser) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    },
+                    tonalElevation = if (isUser) 0.dp else 2.dp
+                ) {
+                    Column {
+                        Box(modifier = Modifier.padding(14.dp)) {
+                            if (isUser) {
+                                Column {
+                                    if (!message.imageUri.isNullOrBlank()) {
+                                        val dataUri = "data:image/jpeg;base64,${message.imageUri}"
+                                        AsyncImage(
+                                            model = dataUri,
+                                            contentDescription = "Attached image",
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(200.dp)
+                                                .padding(bottom = 8.dp)
+                                        )
+                                    }
                                     Text(
-                                        text = "Thinking\u2026",
+                                        text = message.content,
                                         style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
                                     )
-                                } else {
+                                }
+                            } else {
+                                if (message.isStreaming && message.content.isEmpty()) {
+                                    Text(
+                                        text = "",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                } else if (message.isStreaming) {
                                     Text(
                                         text = message.content,
                                         style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                }
-                            } else {
-                                Markdown(
-                                    content = message.content,
-                                    modifier = Modifier,
-                                    colors = markdownColor(
-                                        text = MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    typography = markdownTypography(
-                                        code = MaterialTheme.typography.bodyMedium.copy(
-                                            fontFamily = GoogleSansCode
+                                } else {
+                                    Markdown(
+                                        content = message.content,
+                                        modifier = Modifier,
+                                        colors = markdownColor(
+                                            text = MaterialTheme.colorScheme.onSurfaceVariant
                                         ),
-                                        inlineCode = MaterialTheme.typography.bodyMedium.copy(
-                                            fontFamily = GoogleSansCode
+                                        typography = markdownTypography(
+                                            code = MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = GoogleSansCode
+                                            ),
+                                            inlineCode = MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = GoogleSansCode
+                                            )
+                                        ),
+                                        components = markdownComponents(
+                                            codeBlock = {
+                                                MarkdownCodeBlock(it.content, it.node) { code, _ ->
+                                                    CodeBlockWithSyntaxHighlight(code)
+                                                }
+                                            },
+                                            codeFence = {
+                                                MarkdownCodeFence(it.content, it.node) { code, _ ->
+                                                    CodeBlockWithSyntaxHighlight(code)
+                                                }
+                                            }
                                         )
-                                    ),
-                                    components = markdownComponents(
-                                        codeBlock = {
-                                            MarkdownCodeBlock(it.content, it.node) { code, _ ->
-                                                CodeBlockWithCopy(code)
-                                            }
-                                        },
-                                        codeFence = {
-                                            MarkdownCodeFence(it.content, it.node) { code, _ ->
-                                                CodeBlockWithCopy(code)
-                                            }
-                                        }
                                     )
-                                )
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            DropdownMenu(
-                expanded = showMenu,
-                onDismissRequest = { showMenu = false },
-                offset = menuOffset
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Copy") },
-                    leadingIcon = {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null)
-                    },
-                    onClick = {
-                        clipboardManager.setText(AnnotatedString(message.content))
-                        showMenu = false
-                    }
-                )
-                if (!isUser) {
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    offset = menuOffset
+                ) {
                     DropdownMenuItem(
-                        text = { Text("Regenerate") },
-                        leadingIcon = {
-                            Icon(Icons.Default.Refresh, contentDescription = null)
-                        },
+                        text = { Text("Copy") },
+                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
                         onClick = {
-                            onRegenerate()
+                            clipboardManager.setText(AnnotatedString(message.content))
+                            showMenu = false
+                        }
+                    )
+                    if (isUser) {
+                        DropdownMenuItem(
+                            text = { Text("Edit") },
+                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                            onClick = {
+                                onEdit()
+                                showMenu = false
+                            }
+                        )
+                    }
+                    if (!isUser) {
+                        DropdownMenuItem(
+                            text = { Text("Regenerate") },
+                            leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
+                            onClick = {
+                                onRegenerate()
+                                showMenu = false
+                            }
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text("Delete") },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                        onClick = {
+                            onDelete()
                             showMenu = false
                         }
                     )
                 }
-                DropdownMenuItem(
-                    text = { Text("Delete") },
-                    leadingIcon = {
-                        Icon(Icons.Default.Delete, contentDescription = null)
-                    },
-                    onClick = {
-                        onDelete()
-                        showMenu = false
-                    }
-                )
             }
+
+            Text(
+                text = timeFormat.format(Date(message.createdAt)),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isUser) {
+                    MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                },
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+            )
         }
     }
 }
 
 @Composable
-private fun CodeBlockWithCopy(code: String) {
+private fun CodeBlockWithSyntaxHighlight(code: String) {
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     var showCopied by remember { mutableStateOf(false) }
@@ -215,13 +254,10 @@ private fun CodeBlockWithCopy(code: String) {
             shape = RoundedCornerShape(LocalMarkdownDimens.current.codeBackgroundCornerSize),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(
-                text = code,
+            SyntaxHighlightedCode(
+                code = code,
                 style = LocalMarkdownTypography.current.code,
-                color = LocalMarkdownColors.current.codeText,
-                modifier = Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(LocalMarkdownPadding.current.codeBlock)
+                color = LocalMarkdownColors.current.codeText
             )
         }
 
@@ -249,4 +285,61 @@ private fun CodeBlockWithCopy(code: String) {
             }
         }
     }
+}
+
+@Composable
+private fun SyntaxHighlightedCode(
+    code: String,
+    style: androidx.compose.ui.text.TextStyle,
+    color: androidx.compose.ui.graphics.Color
+) {
+    val keywords = setOf(
+        "fun", "val", "var", "class", "interface", "object", "data", "sealed", "open",
+        "abstract", "override", "suspend", "return", "if", "else", "when", "for", "while",
+        "import", "package", "private", "public", "internal", "protected", "const",
+        "lateinit", "by", "in", "is", "as", "try", "catch", "finally", "throw", "true",
+        "false", "null", "this", "super", "enum", "companion", "operator", "inline",
+        "noinline", "crossinline", "reified", "expect", "actual", "typealias", "where",
+        "def", "if", "else", "for", "while", "return", "from", "as",
+        "except", "raise", "lambda", "with", "yield", "async", "await",
+        "function", "let", "const", "export", "default", "class", "extends", "new",
+        "typeof", "instanceof", "undefined"
+    )
+    val types = setOf(
+        "Int", "Long", "Float", "Double", "Boolean", "String", "Char", "Byte", "Short",
+        "Unit", "Nothing", "Any", "List", "Map", "Set", "Array", "Sequence", "Flow",
+        "MutableList", "MutableMap", "MutableSet"
+    )
+
+    val annotated = buildAnnotatedString {
+        val tokens = code.split(Regex("(?=[^a-zA-Z0-9_])|(?<=[^a-zA-Z0-9_])"))
+        tokens.forEach { token ->
+            when {
+                token in keywords -> withStyle(
+                    SpanStyle(color = androidx.compose.ui.graphics.Color(0xFFCF8E6D), fontFamily = GoogleSansCode)
+                ) { append(token) }
+                token in types -> withStyle(
+                    SpanStyle(color = androidx.compose.ui.graphics.Color(0xFFBCA5C4), fontFamily = GoogleSansCode)
+                ) { append(token) }
+                token.startsWith("\"") || token.startsWith("'") || token.startsWith("`") -> withStyle(
+                    SpanStyle(color = androidx.compose.ui.graphics.Color(0xFF6AAB73), fontFamily = GoogleSansCode)
+                ) { append(token) }
+                token.toDoubleOrNull() != null || token.matches(Regex("^0[xX][0-9a-fA-F]+")) -> withStyle(
+                    SpanStyle(color = androidx.compose.ui.graphics.Color(0xFF2AACB4), fontFamily = GoogleSansCode)
+                ) { append(token) }
+                token.startsWith("//") || token.startsWith("/*") || token.startsWith("*") -> withStyle(
+                    SpanStyle(color = androidx.compose.ui.graphics.Color(0xFF6A8759), fontFamily = GoogleSansCode)
+                ) { append(token) }
+                else -> withStyle(SpanStyle(color = color, fontFamily = GoogleSansCode)) { append(token) }
+            }
+        }
+    }
+
+    Text(
+        text = annotated,
+        style = style.copy(fontFamily = GoogleSansCode),
+        modifier = Modifier
+            .horizontalScroll(rememberScrollState())
+            .padding(LocalMarkdownPadding.current.codeBlock)
+    )
 }

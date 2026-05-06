@@ -1,11 +1,20 @@
 package com.dynodevv.relay.ui.chat
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,16 +23,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Button
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -45,13 +57,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
@@ -67,7 +79,6 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,6 +95,12 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val screenWidthPx = with(LocalDensity.current) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
 
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { viewModel.attachImage(it.toString()) }
+    }
+
     LaunchedEffect(conversationId) {
         viewModel.loadConversation(conversationId)
     }
@@ -91,6 +108,13 @@ fun ChatScreen(
     LaunchedEffect(uiState.messages.size) {
         if (uiState.messages.isNotEmpty()) {
             listState.animateScrollToItem(0)
+        }
+    }
+
+    LaunchedEffect(uiState.navigateToConversationId) {
+        uiState.navigateToConversationId?.let { id ->
+            onNavigateToChat(id)
+            viewModel.clearNavigation()
         }
     }
 
@@ -155,9 +179,13 @@ fun ChatScreen(
                     onValueChange = viewModel::onInputChange,
                     onSend = { viewModel.sendMessage() },
                     onStop = { viewModel.stopGeneration() },
-                    onAttach = { },
+                    onAttach = { imagePicker.launch("image/*") },
+                    onCancelEdit = viewModel::cancelEditing,
+                    onClearAttachment = viewModel::clearAttachedImage,
                     isLoading = uiState.isLoading,
-                    supportsAttachments = false,
+                    supportsAttachments = true,
+                    attachedImageUri = uiState.attachedImageUri,
+                    isEditing = uiState.editingMessageId != null,
                     modifier = Modifier
                         .navigationBarsPadding()
                         .imePadding()
@@ -217,46 +245,133 @@ fun ChatScreen(
                             }
                         }
                 ) {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 8.dp),
-                        reverseLayout = true
-                    ) {
-                        items(
-                            items = uiState.messages.reversed(),
-                            key = { it.id }
-                        ) { message ->
-                            MessageBubble(
-                                message = message,
-                                onDelete = { viewModel.deleteMessage(message.id) },
-                                onRegenerate = {
-                                    if (message.role is MessageRole.Assistant) {
-                                        viewModel.regenerateMessage(message.id)
-                                    }
-                                }
-                            )
-                        }
-
-                        if (uiState.isLoading && uiState.messages.isNotEmpty() &&
-                            uiState.messages.last().role is MessageRole.User
+                    if (!uiState.hasProviders && uiState.messages.isEmpty()) {
+                        EmptyState(onNavigateToSettings = onNavigateToSettings)
+                    } else {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(vertical = 8.dp),
+                            reverseLayout = true
                         ) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.height(24.dp),
-                                        strokeWidth = 2.dp
-                                    )
+                            items(
+                                items = uiState.messages.reversed(),
+                                key = { it.id }
+                            ) { message ->
+                                MessageBubble(
+                                    message = message,
+                                    onDelete = { viewModel.deleteMessage(message.id) },
+                                    onRegenerate = {
+                                        if (message.role is MessageRole.Assistant) {
+                                            viewModel.regenerateMessage(message.id)
+                                        }
+                                    },
+                                    onEdit = {
+                                        if (message.role is MessageRole.User) {
+                                            viewModel.startEditingMessage(message.id)
+                                        }
+                                    }
+                                )
+                            }
+
+                            if (uiState.isTyping) {
+                                item {
+                                    TypingIndicator()
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TypingIndicator() {
+    val infiniteTransition = rememberInfiniteTransition(label = "typing")
+    val dot1 by infiniteTransition.animateFloat(
+        initialValue = 0.3f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "dot1"
+    )
+    val dot2 by infiniteTransition.animateFloat(
+        initialValue = 0.3f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(600, delayMillis = 200), RepeatMode.Reverse), label = "dot2"
+    )
+    val dot3 by infiniteTransition.animateFloat(
+        initialValue = 0.3f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(600, delayMillis = 400), RepeatMode.Reverse), label = "dot3"
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.Start
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = "Thinking",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = ".",
+                modifier = Modifier.alpha(dot1),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+            Text(
+                text = ".",
+                modifier = Modifier.alpha(dot2),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+            Text(
+                text = ".",
+                modifier = Modifier.alpha(dot3),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyState(onNavigateToSettings: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.CloudOff,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "No providers configured",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Add an AI provider in settings to start chatting.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(onClick = onNavigateToSettings) {
+                Text("Go to Settings")
             }
         }
     }

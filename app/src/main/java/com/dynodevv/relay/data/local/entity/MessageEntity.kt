@@ -23,6 +23,7 @@ data class MessageEntity(
     val conversationId: Long,
     val role: String, // "user" | "assistant" | "system"
     val content: String,
+    val imageUri: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val isError: Boolean = false,
     val isStreaming: Boolean = false

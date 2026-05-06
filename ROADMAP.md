@@ -31,16 +31,16 @@ This project uses **phases** instead of rigid versions. Each phase builds on the
 
 **Goal:** Make chatting feel polished, responsive, and frustration-free.
 
-- [ ] **Image input / vision support** — Attach images from gallery or camera to messages for vision-capable models
-- [ ] **Message editing** — Tap to edit sent user messages and regenerate the response from that point
-- [ ] **Message branching** — When editing a message, create a new branch instead of overwriting
-- [ ] **Copy message content** — Dedicated copy button on each message bubble
-- [ ] **Stop generation** — Cancel an in-progress streaming response
-- [ ] **Retry / regenerate** — Better regenerate UX with clear loading states
-- [ ] **Typing indicator** — Animated indicator while model is thinking (before first token)
-- [ ] **Code block syntax highlighting** — Better rendering for code snippets
-- [ ] **Message timestamps** — Show sent/received time on long-press or as tooltip
-- [ ] **Empty state / onboarding** — Friendly guidance when no providers are configured
+- [x] **Image input / vision support** — Attach images from gallery or camera to messages for vision-capable models
+- [x] **Message editing** — Tap to edit sent user messages and regenerate the response from that point
+- [x] **Message branching** — When editing a message, create a new branch instead of overwriting
+- [x] **Copy message content** — Dedicated copy button on each message bubble
+- [x] **Stop generation** — Cancel an in-progress streaming response
+- [x] **Retry / regenerate** — Better regenerate UX with clear loading states
+- [x] **Typing indicator** — Animated indicator while model is thinking (before first token)
+- [x] **Code block syntax highlighting** — Better rendering for code snippets
+- [x] **Message timestamps** — Show sent/received time on long-press or as tooltip
+- [x] **Empty state / onboarding** — Friendly guidance when no providers are configured
 
 ---
 

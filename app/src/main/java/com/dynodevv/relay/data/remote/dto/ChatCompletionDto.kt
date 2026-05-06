@@ -2,6 +2,10 @@ package com.dynodevv.relay.data.remote.dto
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 
 @Serializable
 data class ChatRequestDto(
@@ -16,8 +20,28 @@ data class ChatRequestDto(
 @Serializable
 data class MessageDto(
     val role: String,
-    val content: String
+    val content: JsonElement
 )
+
+fun textMessageDto(role: String, text: String): MessageDto =
+    MessageDto(role = role, content = JsonPrimitive(text))
+
+fun visionMessageDto(role: String, text: String, imageBase64: String): MessageDto =
+    MessageDto(
+        role = role,
+        content = buildJsonArray {
+            add(buildJsonObject {
+                put("type", JsonPrimitive("text"))
+                put("text", JsonPrimitive(text))
+            })
+            add(buildJsonObject {
+                put("type", JsonPrimitive("image_url"))
+                put("image_url", buildJsonObject {
+                    put("url", JsonPrimitive("data:image/jpeg;base64,$imageBase64"))
+                })
+            })
+        }
+    )
 
 @Serializable
 data class ChatResponseDto(

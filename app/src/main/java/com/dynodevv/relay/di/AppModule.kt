@@ -61,7 +61,7 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "relay_database"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 
     @Provides

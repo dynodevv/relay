@@ -31,3 +31,6 @@ Thumbs.db
 .android-dev/
 /*.ttf
 /*.otf
+
+# Local JDK
+jdk-portable/

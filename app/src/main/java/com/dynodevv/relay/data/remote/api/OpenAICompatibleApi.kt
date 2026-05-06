@@ -108,8 +108,7 @@ class OpenAICompatibleApi @Inject constructor(
                         val eventData = eventDataBuffer.toString()
                         eventDataBuffer.clear()
                         parseSseEvent(eventData)?.let { chunk ->
-                            val preview = chunk.choices?.firstOrNull()?.delta?.content?.take(30)
-                                ?: chunk.choices?.firstOrNull()?.message?.content?.take(30)
+                            val preview = contentPreview(chunk.choices?.firstOrNull())
                             android.util.Log.d("RelaySSE", "Emitted buffered SSE chunk. Preview: $preview")
                             emit(chunk)
                         }
@@ -130,8 +129,7 @@ class OpenAICompatibleApi @Inject constructor(
                     // Most SSE events are single-line JSON — try to emit immediately
                     try {
                         val chunk = json.decodeFromString<ChatResponseDto>(data)
-                        val preview = chunk.choices?.firstOrNull()?.delta?.content?.take(30)
-                            ?: chunk.choices?.firstOrNull()?.message?.content?.take(30)
+                        val preview = contentPreview(chunk.choices?.firstOrNull())
                         android.util.Log.d("RelaySSE", "Emitted immediate SSE chunk. Preview: $preview")
                         eventDataBuffer.clear() // Clear any stale buffer
                         emit(chunk)
@@ -179,8 +177,7 @@ class OpenAICompatibleApi @Inject constructor(
             // Process any remaining buffered event data after channel closes
             if (eventDataBuffer.isNotEmpty()) {
                 parseSseEvent(eventDataBuffer.toString())?.let { chunk ->
-                    val preview = chunk.choices?.firstOrNull()?.delta?.content?.take(30)
-                        ?: chunk.choices?.firstOrNull()?.message?.content?.take(30)
+                    val preview = contentPreview(chunk.choices?.firstOrNull())
                     android.util.Log.d("RelaySSE", "Emitted remaining SSE chunk. Preview: $preview")
                     emit(chunk)
                 }
@@ -209,6 +206,13 @@ class OpenAICompatibleApi @Inject constructor(
             android.util.Log.w("RelaySSE", "Failed to parse SSE event: $trimmed, error: ${e.message}")
             null
         }
+    }
+
+    private fun contentPreview(choice: com.dynodevv.relay.data.remote.dto.ChoiceDto?): String? {
+        val deltaContent = choice?.delta?.content
+        if (deltaContent != null) return deltaContent.take(30)
+        val msgContent = choice?.message?.content
+        return (msgContent as? kotlinx.serialization.json.JsonPrimitive)?.content?.take(30)
     }
 
     suspend fun sendChatCompletion(
