@@ -3,6 +3,7 @@ package com.dynodevv.relay.ui.models
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dynodevv.relay.data.repository.ProviderRepository
+import com.dynodevv.relay.data.repository.SettingsRepository
 import com.dynodevv.relay.domain.model.AIModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
@@ -13,7 +14,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ModelsViewModel @Inject constructor(
-    private val repository: ProviderRepository
+    private val repository: ProviderRepository,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     private val _isFetching = MutableStateFlow(false)
@@ -24,6 +26,17 @@ class ModelsViewModel @Inject constructor(
 
     private val _fetchedModels = MutableStateFlow<List<AIModel>?>(null)
     val fetchedModels: StateFlow<List<AIModel>?> = _fetchedModels
+
+    private val _defaultModelId = MutableStateFlow<String?>(null)
+    val defaultModelId: StateFlow<String?> = _defaultModelId
+
+    init {
+        viewModelScope.launch {
+            settingsRepository.defaultModelId.collect { id ->
+                _defaultModelId.value = id
+            }
+        }
+    }
 
     fun getModels(providerId: Long): Flow<List<AIModel>> =
         repository.getModels(providerId)
@@ -43,6 +56,24 @@ class ModelsViewModel @Inject constructor(
     fun deleteModel(id: String, providerId: Long) {
         viewModelScope.launch {
             repository.deleteModel(id, providerId)
+        }
+    }
+
+    fun toggleFavorite(model: AIModel) {
+        viewModelScope.launch {
+            repository.setModelFavorite(model.id, model.providerId, !model.isFavorite)
+        }
+    }
+
+    fun setAsDefault(providerId: Long, modelId: String) {
+        viewModelScope.launch {
+            settingsRepository.setDefaultModel(providerId, modelId)
+        }
+    }
+
+    fun clearDefault() {
+        viewModelScope.launch {
+            settingsRepository.clearDefaultModel()
         }
     }
 

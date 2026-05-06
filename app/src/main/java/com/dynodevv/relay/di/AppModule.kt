@@ -3,6 +3,7 @@ package com.dynodevv.relay.di
 import android.content.Context
 import androidx.room.Room
 import com.dynodevv.relay.data.local.AppDatabase
+import com.dynodevv.relay.data.local.MIGRATION_3_6
 import com.dynodevv.relay.data.remote.api.OpenAICompatibleApi
 import dagger.Module
 import dagger.Provides
@@ -61,7 +62,9 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "relay_database"
-        ).fallbackToDestructiveMigration().build()
+        )
+            .addMigrations(MIGRATION_3_6)
+            .build()
     }
 
     @Provides

@@ -40,4 +40,23 @@ class ProvidersViewModel @Inject constructor(
             securePrefs.removeApiKey(id)
         }
     }
+
+    suspend fun testConnection(provider: Provider): TestResult {
+        return try {
+            val result = repository.testProviderConnection(provider)
+            if (result.isSuccess) {
+                TestResult.Success
+            } else {
+                TestResult.Error(result.exceptionOrNull()?.message ?: "Connection failed")
+            }
+        } catch (e: Exception) {
+            TestResult.Error(e.message ?: "Unknown error")
+        }
+    }
+}
+
+sealed class TestResult {
+    data object Loading : TestResult()
+    data object Success : TestResult()
+    data class Error(val message: String) : TestResult()
 }

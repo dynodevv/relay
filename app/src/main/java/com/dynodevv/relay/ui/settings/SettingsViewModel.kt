@@ -20,6 +20,12 @@ class SettingsViewModel @Inject constructor(
     val dynamicColors = repository.dynamicColors
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val defaultProviderId = repository.defaultProviderId
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val defaultModelId = repository.defaultModelId
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     fun setThemeMode(mode: String) {
         viewModelScope.launch {
             repository.setThemeMode(mode)

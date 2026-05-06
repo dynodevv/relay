@@ -4,6 +4,7 @@ import com.dynodevv.relay.data.remote.api.OpenAICompatibleApi
 import com.dynodevv.relay.data.remote.dto.ChatRequestDto
 import com.dynodevv.relay.data.remote.dto.textMessageDto
 import com.dynodevv.relay.data.remote.dto.visionMessageDto
+import com.dynodevv.relay.domain.model.AIModel
 import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.Provider
 import kotlinx.coroutines.delay
@@ -23,21 +24,32 @@ class ChatService @Inject constructor(
         modelId: String,
         messages: List<Message>,
         conversationId: Long,
-        temperature: Double? = null,
-        maxTokens: Int? = null
+        systemPrompt: String? = null,
+        modelParams: AIModel? = null
     ): Flow<String> = flow {
+        val requestMessages = buildList {
+            systemPrompt?.let {
+                add(textMessageDto(role = "system", text = it))
+            }
+            messages.forEach { msg ->
+                if (msg.imageUris.isNotEmpty()) {
+                    add(visionMessageDto(role = msg.roleString, text = msg.content, imageBase64s = msg.imageUris))
+                } else {
+                    add(textMessageDto(role = msg.roleString, text = msg.content))
+                }
+            }
+        }
+
         val request = ChatRequestDto(
             model = modelId,
-            messages = messages.map {
-                if (it.imageUris.isNotEmpty()) {
-                    visionMessageDto(role = it.roleString, text = it.content, imageBase64s = it.imageUris)
-                } else {
-                    textMessageDto(role = it.roleString, text = it.content)
-                }
-            },
+            messages = requestMessages,
             stream = true,
-            temperature = temperature,
-            maxTokens = maxTokens
+            temperature = modelParams?.temperature,
+            maxTokens = modelParams?.maxTokens,
+            topP = modelParams?.topP,
+            topK = modelParams?.topK,
+            presencePenalty = modelParams?.presencePenalty,
+            frequencyPenalty = modelParams?.frequencyPenalty
         )
 
         var hasEmittedContent = false

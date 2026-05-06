@@ -49,6 +49,12 @@ fun AddModelScreen(
     var supportsTools by remember { mutableStateOf(false) }
     var supportsReasoning by remember { mutableStateOf(false) }
     var contextLength by remember { mutableStateOf("") }
+    var temperature by remember { mutableStateOf("") }
+    var maxTokens by remember { mutableStateOf("") }
+    var topP by remember { mutableStateOf("") }
+    var topK by remember { mutableStateOf("") }
+    var presencePenalty by remember { mutableStateOf("") }
+    var frequencyPenalty by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -102,9 +108,70 @@ fun AddModelScreen(
                 shape = MaterialTheme.shapes.large,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Done
+                    imeAction = ImeAction.Next
                 )
             )
+
+            Text(
+                text = "Parameters",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = temperature,
+                    onValueChange = { temperature = it },
+                    label = { Text("Temperature") },
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.large,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+                OutlinedTextField(
+                    value = maxTokens,
+                    onValueChange = { maxTokens = it },
+                    label = { Text("Max Tokens") },
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.large,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = topP,
+                    onValueChange = { topP = it },
+                    label = { Text("Top P") },
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.large,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+                OutlinedTextField(
+                    value = topK,
+                    onValueChange = { topK = it },
+                    label = { Text("Top K") },
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.large,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = presencePenalty,
+                    onValueChange = { presencePenalty = it },
+                    label = { Text("Presence Penalty") },
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.large,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+                OutlinedTextField(
+                    value = frequencyPenalty,
+                    onValueChange = { frequencyPenalty = it },
+                    label = { Text("Frequency Penalty") },
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.large,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+            }
 
             CapabilityCheckbox(
                 label = "Supports Image Input",
@@ -138,7 +205,13 @@ fun AddModelScreen(
                                 supportsTools = supportsTools,
                                 supportsReasoning = supportsReasoning,
                                 contextLength = contextLength.toIntOrNull(),
-                                isCustom = true
+                                isCustom = true,
+                                temperature = temperature.toDoubleOrNull(),
+                                maxTokens = maxTokens.toIntOrNull(),
+                                topP = topP.toDoubleOrNull(),
+                                topK = topK.toIntOrNull(),
+                                presencePenalty = presencePenalty.toDoubleOrNull(),
+                                frequencyPenalty = frequencyPenalty.toDoubleOrNull()
                             )
                         )
                         onBack()

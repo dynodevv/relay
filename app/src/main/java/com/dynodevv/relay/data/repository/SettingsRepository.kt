@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -24,6 +25,8 @@ class SettingsRepository @Inject constructor(
     companion object {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val DYNAMIC_COLORS = booleanPreferencesKey("dynamic_colors")
+        val DEFAULT_PROVIDER_ID = longPreferencesKey("default_provider_id")
+        val DEFAULT_MODEL_ID = stringPreferencesKey("default_model_id")
     }
 
     val themeMode: Flow<String> = dataStore.data.map { prefs ->
@@ -32,6 +35,14 @@ class SettingsRepository @Inject constructor(
 
     val dynamicColors: Flow<Boolean> = dataStore.data.map { prefs ->
         prefs[DYNAMIC_COLORS] ?: true
+    }
+
+    val defaultProviderId: Flow<Long?> = dataStore.data.map { prefs ->
+        prefs[DEFAULT_PROVIDER_ID]
+    }
+
+    val defaultModelId: Flow<String?> = dataStore.data.map { prefs ->
+        prefs[DEFAULT_MODEL_ID]
     }
 
     suspend fun setThemeMode(mode: String) {
@@ -43,6 +54,20 @@ class SettingsRepository @Inject constructor(
     suspend fun setDynamicColors(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[DYNAMIC_COLORS] = enabled
+        }
+    }
+
+    suspend fun setDefaultModel(providerId: Long, modelId: String) {
+        dataStore.edit { prefs ->
+            prefs[DEFAULT_PROVIDER_ID] = providerId
+            prefs[DEFAULT_MODEL_ID] = modelId
+        }
+    }
+
+    suspend fun clearDefaultModel() {
+        dataStore.edit { prefs ->
+            prefs.remove(DEFAULT_PROVIDER_ID)
+            prefs.remove(DEFAULT_MODEL_ID)
         }
     }
 }

@@ -36,4 +36,7 @@ interface ConversationDao {
 
     @Query("UPDATE conversations SET modelId = :modelId WHERE id = :id")
     suspend fun updateModel(id: Long, modelId: String)
+
+    @Query("UPDATE conversations SET systemPrompt = :systemPrompt WHERE id = :id")
+    suspend fun updateSystemPrompt(id: Long, systemPrompt: String?)
 }

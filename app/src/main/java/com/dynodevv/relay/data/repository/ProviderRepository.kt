@@ -55,18 +55,64 @@ class ProviderRepository @Inject constructor(
         modelDao.deleteById(id, providerId)
     }
 
+    suspend fun setModelFavorite(id: String, providerId: Long, isFavorite: Boolean) {
+        modelDao.setFavorite(id, providerId, isFavorite)
+    }
+
+    suspend fun testProviderConnection(provider: Provider): Result<Unit> {
+        return api.testConnection(provider.apiBaseUrl, provider.apiKey)
+    }
+
     suspend fun fetchModelsFromApi(provider: Provider): Result<List<AIModel>> {
         val result = api.fetchModels(provider.apiBaseUrl, provider.apiKey)
         return result.map { response ->
             response.data?.map { dto ->
+                val id = dto.id
                 AIModel(
-                    id = dto.id,
+                    id = id,
                     providerId = provider.id,
-                    displayName = dto.name ?: dto.id,
+                    displayName = dto.name ?: id,
+                    supportsImageInput = detectVisionCapability(id, dto),
+                    supportsTools = detectToolsCapability(id, dto),
+                    supportsReasoning = detectReasoningCapability(id, dto),
+                    contextLength = dto.context_length,
                     isCustom = false
                 )
             } ?: emptyList()
         }
+    }
+
+    private fun detectVisionCapability(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
+        val idLower = modelId.lowercase()
+        if (idLower.contains("vision")) return true
+        if (idLower.contains("gpt-4o")) return true
+        if (idLower.contains("claude-3")) return true
+        if (idLower.contains("gemini-1.5") || idLower.contains("gemini-2")) return true
+        if (idLower.contains("gemini-pro-vision")) return true
+        if (idLower.contains("llava")) return true
+        val modality = dto.architecture?.modality?.lowercase()
+        if (modality != null && (modality.contains("image") || modality.contains("vision") || modality.contains("multimodal"))) return true
+        return false
+    }
+
+    private fun detectToolsCapability(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
+        val idLower = modelId.lowercase()
+        if (idLower.contains("gpt-4")) return true
+        if (idLower.contains("claude-3")) return true
+        if (idLower.contains("gemini-1.5") || idLower.contains("gemini-2")) return true
+        if (idLower.contains("command-r")) return true
+        if (idLower.contains("mixtral-8x22b")) return true
+        if (idLower.contains("qwen2.5") || idLower.contains("qwen-2.5")) return true
+        return false
+    }
+
+    private fun detectReasoningCapability(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
+        val idLower = modelId.lowercase()
+        if (idLower.contains("o1") || idLower.contains("o3")) return true
+        if (idLower.contains("reasoning")) return true
+        if (idLower.contains("deepseek-r")) return true
+        if (idLower.contains("claude-3-7-sonnet") || idLower.contains("claude-3.7-sonnet")) return true
+        return false
     }
 
     private fun ProviderEntity.toDomain() = Provider(
@@ -97,7 +143,14 @@ class ProviderRepository @Inject constructor(
         supportsTools = supportsTools,
         supportsReasoning = supportsReasoning,
         contextLength = contextLength,
-        isCustom = isCustom
+        isCustom = isCustom,
+        isFavorite = isFavorite,
+        temperature = temperature,
+        maxTokens = maxTokens,
+        topP = topP,
+        topK = topK,
+        presencePenalty = presencePenalty,
+        frequencyPenalty = frequencyPenalty
     )
 
     private fun AIModel.toEntity() = AIModelEntity(
@@ -108,6 +161,13 @@ class ProviderRepository @Inject constructor(
         supportsTools = supportsTools,
         supportsReasoning = supportsReasoning,
         contextLength = contextLength,
-        isCustom = isCustom
+        isCustom = isCustom,
+        isFavorite = isFavorite,
+        temperature = temperature,
+        maxTokens = maxTokens,
+        topP = topP,
+        topK = topK,
+        presencePenalty = presencePenalty,
+        frequencyPenalty = frequencyPenalty
     )
 }

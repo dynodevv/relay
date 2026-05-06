@@ -14,7 +14,15 @@ data class ChatRequestDto(
     val stream: Boolean = true,
     val temperature: Double? = null,
     @SerialName("max_tokens")
-    val maxTokens: Int? = null
+    val maxTokens: Int? = null,
+    @SerialName("top_p")
+    val topP: Double? = null,
+    @SerialName("top_k")
+    val topK: Int? = null,
+    @SerialName("presence_penalty")
+    val presencePenalty: Double? = null,
+    @SerialName("frequency_penalty")
+    val frequencyPenalty: Double? = null
 )
 
 @Serializable
@@ -81,5 +89,12 @@ data class ModelsResponseDto(
 data class ModelInfoDto(
     val id: String,
     val name: String? = null,
-    val description: String? = null
+    val description: String? = null,
+    val context_length: Int? = null,
+    val architecture: ModelArchitectureDto? = null
+)
+
+@Serializable
+data class ModelArchitectureDto(
+    val modality: String? = null
 )

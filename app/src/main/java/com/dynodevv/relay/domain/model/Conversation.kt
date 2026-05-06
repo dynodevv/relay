@@ -6,5 +6,6 @@ data class Conversation(
     val providerId: Long,
     val modelId: String,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val systemPrompt: String? = null
 )

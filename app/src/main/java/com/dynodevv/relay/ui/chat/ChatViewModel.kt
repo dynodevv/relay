@@ -9,6 +9,7 @@ import com.dynodevv.relay.data.repository.ChatRepository
 import com.dynodevv.relay.data.repository.ChatService
 import com.dynodevv.relay.data.repository.MessageRepository
 import com.dynodevv.relay.data.repository.ProviderRepository
+import com.dynodevv.relay.data.repository.SettingsRepository
 import com.dynodevv.relay.domain.model.AIModel
 import com.dynodevv.relay.domain.model.Conversation
 import com.dynodevv.relay.domain.model.Message
@@ -41,7 +42,9 @@ data class ChatUiState(
     val attachedImageUris: List<String> = emptyList(),
     val editingMessageId: Long? = null,
     val hasProviders: Boolean = true,
-    val navigateToConversationId: Long? = null
+    val navigateToConversationId: Long? = null,
+    val systemPrompt: String? = null,
+    val showSystemPromptDialog: Boolean = false
 )
 
 @HiltViewModel
@@ -50,7 +53,8 @@ class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val messageRepository: MessageRepository,
     private val providerRepository: ProviderRepository,
-    private val chatService: ChatService
+    private val chatService: ChatService,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -75,25 +79,40 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             if (conversationId == 0L) {
                 val providers = providerRepository.getProviders().first()
-                val defaultProvider = providers.firstOrNull()
-                val defaultModel = defaultProvider?.let {
-                    providerRepository.getModels(it.id).first().firstOrNull()
+                val defaultProviderId = settingsRepository.defaultProviderId.first()
+                val defaultModelId = settingsRepository.defaultModelId.first()
+
+                val provider = if (defaultProviderId != null) {
+                    providers.find { it.id == defaultProviderId } ?: providers.firstOrNull()
+                } else {
+                    providers.firstOrNull()
                 }
+
+                val models = provider?.let { p ->
+                    providerRepository.getModels(p.id).first()
+                } ?: emptyList()
+
+                val defaultModel = if (defaultModelId != null && provider != null) {
+                    models.find { it.id == defaultModelId }
+                } else {
+                    models.firstOrNull()
+                }
+
                 _uiState.update {
                     it.copy(
                         currentConversationId = 0L,
                         conversationTitle = "New Chat",
                         messages = emptyList(),
-                        currentProvider = defaultProvider,
+                        currentProvider = provider,
                         currentModelId = defaultModel?.id ?: "",
                         currentModel = defaultModel,
-                        availableModels = defaultProvider?.let { p ->
-                            providerRepository.getModels(p.id).first()
-                        } ?: emptyList(),
+                        availableModels = models,
                         error = null,
                         attachedImageUris = emptyList(),
                         editingMessageId = null,
-                        navigateToConversationId = null
+                        navigateToConversationId = null,
+                        systemPrompt = null,
+                        showSystemPromptDialog = false
                     )
                 }
             } else {
@@ -117,7 +136,9 @@ class ChatViewModel @Inject constructor(
                             error = null,
                             attachedImageUris = emptyList(),
                             editingMessageId = null,
-                            navigateToConversationId = null
+                            navigateToConversationId = null,
+                            systemPrompt = conv.systemPrompt,
+                            showSystemPromptDialog = false
                         )
                     }
                 }
@@ -194,9 +215,10 @@ class ChatViewModel @Inject constructor(
 
         val editingMessageId = _uiState.value.editingMessageId
         val imagePaths = _uiState.value.attachedImageUris
+        val systemPrompt = _uiState.value.systemPrompt
 
         if (editingMessageId != null) {
-            editInPlace(editingMessageId, text, imagePaths)
+            editInPlace(editingMessageId, text, imagePaths, systemPrompt)
             return
         }
 
@@ -206,7 +228,7 @@ class ChatViewModel @Inject constructor(
             try {
                 var conversationId = _uiState.value.currentConversationId
                 if (conversationId == 0L) {
-                    conversationId = chatRepository.createConversation(provider.id, modelId)
+                    conversationId = chatRepository.createConversation(provider.id, modelId, systemPrompt)
                     _uiState.update { it.copy(currentConversationId = conversationId) }
                 }
 
@@ -234,7 +256,7 @@ class ChatViewModel @Inject constructor(
                     _uiState.update { it.copy(conversationTitle = title) }
                 }
 
-                streamAssistantResponse(conversationId, provider, modelId)
+                streamAssistantResponse(conversationId, provider, modelId, systemPrompt)
             } catch (e: Exception) {
                 if (e !is kotlinx.coroutines.CancellationException) {
                     _uiState.update { it.copy(isLoading = false, error = e.message) }
@@ -247,7 +269,7 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun editInPlace(messageId: Long, newText: String, imagePaths: List<String>) {
+    private fun editInPlace(messageId: Long, newText: String, imagePaths: List<String>, systemPrompt: String?) {
         currentStreamingJob = viewModelScope.launch {
             _uiState.update { it.copy(inputText = "", isLoading = true, error = null, editingMessageId = null, attachedImageUris = emptyList()) }
 
@@ -273,7 +295,7 @@ class ChatViewModel @Inject constructor(
                 }
                 _uiState.update { it.copy(messages = newMessages) }
 
-                streamAssistantResponse(conversationId, provider, modelId)
+                streamAssistantResponse(conversationId, provider, modelId, systemPrompt)
             } catch (e: Exception) {
                 if (e !is kotlinx.coroutines.CancellationException) {
                     _uiState.update { it.copy(isLoading = false, error = e.message) }
@@ -289,7 +311,8 @@ class ChatViewModel @Inject constructor(
     private suspend fun streamAssistantResponse(
         conversationId: Long,
         provider: Provider,
-        modelId: String
+        modelId: String,
+        systemPrompt: String?
     ) {
         val assistantMessageId = messageRepository.addMessage(
             conversationId = conversationId,
@@ -315,11 +338,14 @@ class ChatViewModel @Inject constructor(
             }
 
         var accumulated = ""
+        val currentModel = _uiState.value.currentModel
         chatService.streamResponse(
             provider = provider,
             modelId = modelId,
             messages = history,
-            conversationId = conversationId
+            conversationId = conversationId,
+            systemPrompt = systemPrompt,
+            modelParams = currentModel
         ).collect { chunk ->
             accumulated += chunk
             assistantMessage = assistantMessage.copy(content = accumulated, isStreaming = true)
@@ -376,7 +402,9 @@ class ChatViewModel @Inject constructor(
                 error = null,
                 attachedImageUris = emptyList(),
                 editingMessageId = null,
-                navigateToConversationId = null
+                navigateToConversationId = null,
+                systemPrompt = null,
+                showSystemPromptDialog = false
             )
         }
     }
@@ -399,6 +427,7 @@ class ChatViewModel @Inject constructor(
             val conversationId = _uiState.value.currentConversationId
             val provider = _uiState.value.currentProvider ?: return@launch
             val modelId = _uiState.value.currentModelId
+            val systemPrompt = _uiState.value.systemPrompt
 
             messageRepository.deleteMessage(messageId)
             _uiState.update { state ->
@@ -410,7 +439,7 @@ class ChatViewModel @Inject constructor(
             }
 
             try {
-                streamAssistantResponse(conversationId, provider, modelId)
+                streamAssistantResponse(conversationId, provider, modelId, systemPrompt)
             } catch (e: Exception) {
                 if (e !is kotlinx.coroutines.CancellationException) {
                     _uiState.update { it.copy(isLoading = false, error = e.message) }
@@ -474,6 +503,25 @@ class ChatViewModel @Inject constructor(
 
     fun clearNavigation() {
         _uiState.update { it.copy(navigateToConversationId = null) }
+    }
+
+    fun showSystemPromptDialog() {
+        _uiState.update { it.copy(showSystemPromptDialog = true) }
+    }
+
+    fun dismissSystemPromptDialog() {
+        _uiState.update { it.copy(showSystemPromptDialog = false) }
+    }
+
+    fun updateSystemPrompt(prompt: String?) {
+        viewModelScope.launch {
+            val conversationId = _uiState.value.currentConversationId
+            val trimmed = prompt?.trim()?.takeIf { it.isNotEmpty() }
+            if (conversationId != 0L) {
+                chatRepository.updateSystemPrompt(conversationId, trimmed)
+            }
+            _uiState.update { it.copy(systemPrompt = trimmed, showSystemPromptDialog = false) }
+        }
     }
 
     private fun pathToBase64(path: String): String? {

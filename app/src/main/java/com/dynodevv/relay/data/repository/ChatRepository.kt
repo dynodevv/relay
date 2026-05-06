@@ -20,12 +20,13 @@ class ChatRepository @Inject constructor(
     suspend fun getConversation(id: Long): Conversation? =
         conversationDao.getById(id)?.toDomain()
 
-    suspend fun createConversation(providerId: Long, modelId: String): Long {
+    suspend fun createConversation(providerId: Long, modelId: String, systemPrompt: String? = null): Long {
         return conversationDao.insert(
             ConversationEntity(
                 title = "New Chat",
                 providerId = providerId,
-                modelId = modelId
+                modelId = modelId,
+                systemPrompt = systemPrompt
             )
         )
     }
@@ -46,12 +47,17 @@ class ChatRepository @Inject constructor(
         conversationDao.updateModel(id, modelId)
     }
 
+    suspend fun updateSystemPrompt(id: Long, systemPrompt: String?) {
+        conversationDao.updateSystemPrompt(id, systemPrompt)
+    }
+
     private fun ConversationEntity.toDomain() = Conversation(
         id = id,
         title = title,
         providerId = providerId,
         modelId = modelId,
         createdAt = createdAt,
-        updatedAt = updatedAt
+        updatedAt = updatedAt,
+        systemPrompt = systemPrompt
     )
 }

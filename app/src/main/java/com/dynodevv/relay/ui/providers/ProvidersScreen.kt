@@ -16,12 +16,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -38,7 +38,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
@@ -125,6 +127,7 @@ fun ProvidersScreen(
     providerToEdit?.let { provider ->
         EditProviderDialog(
             provider = provider,
+            viewModel = viewModel,
             onDismiss = { providerToEdit = null },
             onSave = { updated ->
                 viewModel.editProvider(updated)
@@ -137,6 +140,7 @@ fun ProvidersScreen(
 @Composable
 private fun EditProviderDialog(
     provider: Provider,
+    viewModel: ProvidersViewModel,
     onDismiss: () -> Unit,
     onSave: (Provider) -> Unit
 ) {
@@ -144,6 +148,9 @@ private fun EditProviderDialog(
     var apiBaseUrl by remember(provider.id) { mutableStateOf(provider.apiBaseUrl) }
     var apiPath by remember(provider.id) { mutableStateOf(provider.apiPath) }
     var apiKey by remember(provider.id) { mutableStateOf(provider.apiKey ?: "") }
+    var isTesting by remember { mutableStateOf(false) }
+    var testResult by remember { mutableStateOf<TestResult?>(null) }
+    val scope = rememberCoroutineScope()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -180,6 +187,50 @@ private fun EditProviderDialog(
                     shape = MaterialTheme.shapes.large,
                     visualTransformation = PasswordVisualTransformation()
                 )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                isTesting = true
+                                testResult = null
+                                testResult = viewModel.testConnection(
+                                    provider.copy(
+                                        apiBaseUrl = apiBaseUrl.trim(),
+                                        apiPath = apiPath.trim(),
+                                        apiKey = apiKey.trim().ifEmpty { null }
+                                    )
+                                )
+                                isTesting = false
+                            }
+                        },
+                        enabled = apiBaseUrl.isNotBlank() && !isTesting
+                    ) {
+                        if (isTesting) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text("Test Connection")
+                        }
+                    }
+
+                    when (val result = testResult) {
+                        is TestResult.Success -> Text(
+                            "Connected!",
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                        is TestResult.Error -> Text(
+                            result.message,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                        else -> {}
+                    }
+                }
             }
         },
         confirmButton = {
@@ -227,12 +278,7 @@ private fun ProviderCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    Icons.Default.Cloud,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
-                )
+                ProviderIcon(provider = provider, size = 40.dp)
                 Spacer(Modifier.size(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(

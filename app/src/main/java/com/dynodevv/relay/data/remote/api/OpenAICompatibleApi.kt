@@ -31,6 +31,29 @@ class OpenAICompatibleApi @Inject constructor(
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
+    suspend fun testConnection(baseUrl: String, apiKey: String?): Result<Unit> {
+        return try {
+            val response: HttpResponse = client.get("$baseUrl/models") {
+                apiKey?.let { bearerAuth(it) }
+                header("Accept", "application/json")
+                header("HTTP-Referer", "https://github.com/dynodevv/relay")
+                header("X-Title", "Relay")
+            }
+            if (response.status.isSuccess()) {
+                Result.success(Unit)
+            } else {
+                val bodyText = response.bodyAsText()
+                Result.failure(Exception("HTTP ${response.status.value}: ${bodyText.take(200)}"))
+            }
+        } catch (e: ClientRequestException) {
+            Result.failure(Exception("Client error: ${e.response.status.description}"))
+        } catch (e: ServerResponseException) {
+            Result.failure(Exception("Server error: ${e.response.status.description}"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun fetchModels(baseUrl: String, apiKey: String?): Result<ModelsResponseDto> {
         return try {
             val response: HttpResponse = client.get("$baseUrl/models") {
