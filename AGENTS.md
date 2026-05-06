@@ -76,6 +76,10 @@ Release builds (`isMinifyEnabled = true`) will fail without comprehensive `-keep
 
 See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the current list.
 
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for planned features and upcoming work.
+
 ## Adding a Dependency
 
 1. Add to `app/build.gradle.kts` dependencies block.
