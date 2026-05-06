@@ -99,7 +99,7 @@ fun ChatScreen(
 
     // Confirmation dialog states
     var messageToDelete by remember { mutableStateOf<Long?>(null) }
-    var messageToEdit by remember { mutableStateOf<Long?>(null) }
+    var showEditConfirm by remember { mutableStateOf(false) }
     var showModelMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(conversationId) {
@@ -223,7 +223,13 @@ fun ChatScreen(
                 MessageInput(
                     value = uiState.inputText,
                     onValueChange = viewModel::onInputChange,
-                    onSend = { viewModel.sendMessage() },
+                    onSend = {
+                        if (uiState.editingMessageId != null) {
+                            showEditConfirm = true
+                        } else {
+                            viewModel.sendMessage()
+                        }
+                    },
                     onStop = { viewModel.stopGeneration() },
                     onAttach = { imagePicker.launch("image/*") },
                     onCancelEdit = viewModel::cancelEditing,
@@ -315,7 +321,7 @@ fun ChatScreen(
                                     },
                                     onEdit = {
                                         if (message.role is MessageRole.User) {
-                                            messageToEdit = message.id
+                                            viewModel.startEditingMessage(message.id)
                                         }
                                     }
                                 )
@@ -354,10 +360,10 @@ fun ChatScreen(
         )
     }
 
-    // Edit confirmation dialog
-    messageToEdit?.let { msgId ->
+    // Edit confirmation dialog (shown when sending an edit)
+    if (showEditConfirm && uiState.editingMessageId != null) {
         AlertDialog(
-            onDismissRequest = { messageToEdit = null },
+            onDismissRequest = { showEditConfirm = false },
             title = { Text("Edit Message") },
             text = {
                 Text("This will remove all messages after this one and regenerate the response. Continue?")
@@ -365,15 +371,15 @@ fun ChatScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.startEditingMessage(msgId)
-                        messageToEdit = null
+                        viewModel.sendMessage()
+                        showEditConfirm = false
                     }
                 ) {
                     Text("Edit")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { messageToEdit = null }) {
+                TextButton(onClick = { showEditConfirm = false }) {
                     Text("Cancel")
                 }
             }

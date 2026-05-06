@@ -72,6 +72,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.io.File
 import java.util.Locale
 
 @Composable
@@ -130,10 +131,9 @@ fun MessageBubble(
                                 Column {
                                     if (message.imageUris.isNotEmpty()) {
                                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            message.imageUris.forEach { base64 ->
-                                                val dataUri = "data:image/jpeg;base64,$base64"
+                                            message.imageUris.forEach { path ->
                                                 AsyncImage(
-                                                    model = dataUri,
+                                                    model = File(path),
                                                     contentDescription = "Attached image",
                                                     modifier = Modifier
                                                         .fillMaxWidth()

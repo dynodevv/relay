@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import java.io.File
 
 @Composable
 fun MessageInput(
@@ -55,7 +56,6 @@ fun MessageInput(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        tonalElevation = 2.dp,
         color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
         Column(
@@ -101,11 +101,10 @@ fun MessageInput(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(bottom = 6.dp)
                 ) {
-                    attachedImageUris.forEachIndexed { index, uri ->
+                    attachedImageUris.forEachIndexed { index, path ->
                         Box {
-                            val imageModel = if (uri.startsWith("content://")) uri else "data:image/jpeg;base64,$uri"
                             AsyncImage(
-                                model = imageModel,
+                                model = File(path),
                                 contentDescription = "Attached image",
                                 modifier = Modifier
                                     .size(56.dp)

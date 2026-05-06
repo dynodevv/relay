@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 data class ChatUiState(
@@ -129,7 +130,27 @@ class ChatViewModel @Inject constructor(
     }
 
     fun attachImages(uris: List<String>) {
-        _uiState.update { it.copy(attachedImageUris = it.attachedImageUris + uris) }
+        viewModelScope.launch {
+            val filePaths = uris.mapNotNull { copyUriToFile(it) }
+            _uiState.update { it.copy(attachedImageUris = it.attachedImageUris + filePaths) }
+        }
+    }
+
+    private fun copyUriToFile(uriString: String): String? {
+        return try {
+            val uri = Uri.parse(uriString)
+            val dir = File(context.filesDir, "attached_images").apply { mkdirs() }
+            val fileName = "img_${System.currentTimeMillis()}_${(0..9999).random()}.jpg"
+            val file = File(dir, fileName)
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                file.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            file.absolutePath
+        } catch (e: Exception) {
+            null
+        }
     }
 
     fun removeAttachedImage(index: Int) {
@@ -172,13 +193,10 @@ class ChatViewModel @Inject constructor(
         }
 
         val editingMessageId = _uiState.value.editingMessageId
-        val imageUris = _uiState.value.attachedImageUris
-        val imageBase64s = imageUris.map {
-            if (it.startsWith("content://")) uriToBase64(it) else it
-        }.filterNotNull()
+        val imagePaths = _uiState.value.attachedImageUris
 
         if (editingMessageId != null) {
-            editInPlace(editingMessageId, text, imageBase64s)
+            editInPlace(editingMessageId, text, imagePaths)
             return
         }
 
@@ -196,7 +214,7 @@ class ChatViewModel @Inject constructor(
                     conversationId = conversationId,
                     role = MessageRole.User,
                     content = text,
-                    imageUris = imageBase64s,
+                    imageUris = imagePaths,
                     isStreaming = false
                 )
                 chatRepository.updateTimestamp(conversationId)
@@ -206,7 +224,7 @@ class ChatViewModel @Inject constructor(
                     conversationId = conversationId,
                     role = MessageRole.User,
                     content = text,
-                    imageUris = imageBase64s
+                    imageUris = imagePaths
                 )
                 _uiState.update { it.copy(messages = it.messages + userMessage) }
 
@@ -229,7 +247,7 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun editInPlace(messageId: Long, newText: String, imageBase64s: List<String>) {
+    private fun editInPlace(messageId: Long, newText: String, imagePaths: List<String>) {
         currentStreamingJob = viewModelScope.launch {
             _uiState.update { it.copy(inputText = "", isLoading = true, error = null, editingMessageId = null, attachedImageUris = emptyList()) }
 
@@ -239,7 +257,7 @@ class ChatViewModel @Inject constructor(
                 val modelId = _uiState.value.currentModelId
 
                 // Update the edited message
-                messageRepository.updateMessage(messageId, newText, imageBase64s)
+                messageRepository.updateMessage(messageId, newText, imagePaths)
 
                 // Delete all messages after the edited one
                 messageRepository.deleteMessagesAfter(conversationId, messageId)
@@ -248,7 +266,7 @@ class ChatViewModel @Inject constructor(
                 val editedIndex = _uiState.value.messages.indexOfFirst { it.id == messageId }
                 val newMessages = if (editedIndex != -1) {
                     _uiState.value.messages.take(editedIndex + 1).map { msg ->
-                        if (msg.id == messageId) msg.copy(content = newText, imageUris = imageBase64s) else msg
+                        if (msg.id == messageId) msg.copy(content = newText, imageUris = imagePaths) else msg
                     }
                 } else {
                     _uiState.value.messages
@@ -290,6 +308,11 @@ class ChatViewModel @Inject constructor(
 
         val history = messageRepository.getMessages(conversationId).first()
             .filter { !it.isError && it.id != assistantMessageId }
+            .map { msg ->
+                if (msg.imageUris.isNotEmpty()) {
+                    msg.copy(imageUris = msg.imageUris.mapNotNull { pathToBase64(it) })
+                } else msg
+            }
 
         var accumulated = ""
         chatService.streamResponse(
@@ -453,9 +476,14 @@ class ChatViewModel @Inject constructor(
         _uiState.update { it.copy(navigateToConversationId = null) }
     }
 
-    private fun uriToBase64(uriString: String): String? {
+    private fun pathToBase64(path: String): String? {
         return try {
-            context.contentResolver.openInputStream(Uri.parse(uriString))?.use { input ->
+            val inputStream = if (path.startsWith("content://")) {
+                context.contentResolver.openInputStream(Uri.parse(path))
+            } else {
+                File(path).inputStream()
+            }
+            inputStream?.use { input ->
                 val bytes = input.readBytes()
                 Base64.encodeToString(bytes, Base64.NO_WRAP)
             }
