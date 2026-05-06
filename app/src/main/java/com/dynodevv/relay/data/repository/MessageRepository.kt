@@ -21,13 +21,13 @@ class MessageRepository @Inject constructor(
     suspend fun getMessagesOnce(conversationId: Long): List<Message> =
         messageDao.getByConversationOnce(conversationId).map { it.toDomain() }
 
-    suspend fun addMessage(conversationId: Long, role: MessageRole, content: String, imageUri: String? = null, isStreaming: Boolean = false): Long {
+    suspend fun addMessage(conversationId: Long, role: MessageRole, content: String, imageUris: List<String> = emptyList(), isStreaming: Boolean = false): Long {
         return messageDao.insert(
             MessageEntity(
                 conversationId = conversationId,
                 role = roleString(role),
                 content = content,
-                imageUri = imageUri,
+                imageUris = imageUris.joinToString(","),
                 isStreaming = isStreaming
             )
         )
@@ -37,8 +37,16 @@ class MessageRepository @Inject constructor(
         messageDao.updateContent(id, content, isStreaming)
     }
 
+    suspend fun updateMessage(id: Long, content: String, imageUris: List<String>) {
+        messageDao.updateMessage(id, content, imageUris.joinToString(","))
+    }
+
     suspend fun deleteMessage(id: Long) {
         messageDao.deleteById(id)
+    }
+
+    suspend fun deleteMessagesAfter(conversationId: Long, messageId: Long) {
+        messageDao.deleteMessagesAfter(conversationId, messageId)
     }
 
     suspend fun deleteMessagesByConversation(conversationId: Long) {
@@ -50,7 +58,7 @@ class MessageRepository @Inject constructor(
         conversationId = conversationId,
         role = MessageRole.fromString(role),
         content = content,
-        imageUri = imageUri,
+        imageUris = imageUris.takeIf { it.isNotBlank() }?.split(",") ?: emptyList(),
         createdAt = createdAt,
         isError = isError,
         isStreaming = isStreaming

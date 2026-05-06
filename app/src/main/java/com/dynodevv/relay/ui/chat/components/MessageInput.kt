@@ -1,11 +1,12 @@
 package com.dynodevv.relay.ui.chat.components
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -44,10 +45,11 @@ fun MessageInput(
     onStop: () -> Unit,
     onAttach: () -> Unit,
     onCancelEdit: () -> Unit,
-    onClearAttachment: () -> Unit = {},
+    onRemoveImage: (Int) -> Unit,
+    onClearImages: () -> Unit,
     isLoading: Boolean,
     supportsAttachments: Boolean = false,
-    attachedImageUri: String? = null,
+    attachedImageUris: List<String> = emptyList(),
     isEditing: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -93,29 +95,56 @@ fun MessageInput(
                 }
             }
 
-            if (!attachedImageUri.isNullOrBlank()) {
+            if (attachedImageUris.isNotEmpty()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(bottom = 6.dp)
                 ) {
-                    AsyncImage(
-                        model = attachedImageUri,
-                        contentDescription = "Attached image",
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
-                        onClick = onClearAttachment,
-                        modifier = Modifier.size(20.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Remove image",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
-                        )
+                    attachedImageUris.forEachIndexed { index, uri ->
+                        Box {
+                            val imageModel = if (uri.startsWith("content://")) uri else "data:image/jpeg;base64,$uri"
+                            AsyncImage(
+                                model = imageModel,
+                                contentDescription = "Attached image",
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                            )
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(2.dp)
+                                    .size(18.dp)
+                            ) {
+                                IconButton(
+                                    onClick = { onRemoveImage(index) },
+                                    modifier = Modifier.size(18.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remove image",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (attachedImageUris.size > 1) {
+                        IconButton(
+                            onClick = onClearImages,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear all images",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }

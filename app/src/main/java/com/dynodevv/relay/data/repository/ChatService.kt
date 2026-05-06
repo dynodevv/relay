@@ -29,8 +29,8 @@ class ChatService @Inject constructor(
         val request = ChatRequestDto(
             model = modelId,
             messages = messages.map {
-                if (it.imageUri != null) {
-                    visionMessageDto(role = it.roleString, text = it.content, imageBase64 = it.imageUri)
+                if (it.imageUris.isNotEmpty()) {
+                    visionMessageDto(role = it.roleString, text = it.content, imageBase64s = it.imageUris)
                 } else {
                     textMessageDto(role = it.roleString, text = it.content)
                 }

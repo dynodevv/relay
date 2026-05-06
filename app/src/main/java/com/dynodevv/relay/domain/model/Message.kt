@@ -20,7 +20,7 @@ data class Message(
     val conversationId: Long,
     val role: MessageRole,
     val content: String,
-    val imageUri: String? = null,
+    val imageUris: List<String> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
     val isError: Boolean = false,
     val isStreaming: Boolean = false

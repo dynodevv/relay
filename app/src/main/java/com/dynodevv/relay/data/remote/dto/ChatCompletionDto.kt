@@ -26,7 +26,7 @@ data class MessageDto(
 fun textMessageDto(role: String, text: String): MessageDto =
     MessageDto(role = role, content = JsonPrimitive(text))
 
-fun visionMessageDto(role: String, text: String, imageBase64: String): MessageDto =
+fun visionMessageDto(role: String, text: String, imageBase64s: List<String>): MessageDto =
     MessageDto(
         role = role,
         content = buildJsonArray {
@@ -34,12 +34,14 @@ fun visionMessageDto(role: String, text: String, imageBase64: String): MessageDt
                 put("type", JsonPrimitive("text"))
                 put("text", JsonPrimitive(text))
             })
-            add(buildJsonObject {
-                put("type", JsonPrimitive("image_url"))
-                put("image_url", buildJsonObject {
-                    put("url", JsonPrimitive("data:image/jpeg;base64,$imageBase64"))
+            imageBase64s.forEach { base64 ->
+                add(buildJsonObject {
+                    put("type", JsonPrimitive("image_url"))
+                    put("image_url", buildJsonObject {
+                        put("url", JsonPrimitive("data:image/jpeg;base64,$base64"))
+                    })
                 })
-            })
+            }
         }
     )
 

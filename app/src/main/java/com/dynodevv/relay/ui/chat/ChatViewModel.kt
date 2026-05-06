@@ -9,6 +9,7 @@ import com.dynodevv.relay.data.repository.ChatRepository
 import com.dynodevv.relay.data.repository.ChatService
 import com.dynodevv.relay.data.repository.MessageRepository
 import com.dynodevv.relay.data.repository.ProviderRepository
+import com.dynodevv.relay.domain.model.AIModel
 import com.dynodevv.relay.domain.model.Conversation
 import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.MessageRole
@@ -34,11 +35,12 @@ data class ChatUiState(
     val error: String? = null,
     val currentProvider: Provider? = null,
     val currentModelId: String = "",
-    val attachedImageUri: String? = null,
+    val currentModel: AIModel? = null,
+    val availableModels: List<AIModel> = emptyList(),
+    val attachedImageUris: List<String> = emptyList(),
     val editingMessageId: Long? = null,
     val hasProviders: Boolean = true,
-    val navigateToConversationId: Long? = null,
-    val isTyping: Boolean = false
+    val navigateToConversationId: Long? = null
 )
 
 @HiltViewModel
@@ -83,8 +85,12 @@ class ChatViewModel @Inject constructor(
                         messages = emptyList(),
                         currentProvider = defaultProvider,
                         currentModelId = defaultModel?.id ?: "",
+                        currentModel = defaultModel,
+                        availableModels = defaultProvider?.let { p ->
+                            providerRepository.getModels(p.id).first()
+                        } ?: emptyList(),
                         error = null,
-                        attachedImageUri = null,
+                        attachedImageUris = emptyList(),
                         editingMessageId = null,
                         navigateToConversationId = null
                     )
@@ -94,6 +100,10 @@ class ChatViewModel @Inject constructor(
                 conversation?.let { conv ->
                     val provider = providerRepository.getProvider(conv.providerId)
                     val messages = messageRepository.getMessages(conv.id).first()
+                    val models = provider?.let { p ->
+                        providerRepository.getModels(p.id).first()
+                    } ?: emptyList()
+                    val currentModel = models.find { it.id == conv.modelId }
                     _uiState.update {
                         it.copy(
                             currentConversationId = conv.id,
@@ -101,8 +111,10 @@ class ChatViewModel @Inject constructor(
                             messages = messages,
                             currentProvider = provider,
                             currentModelId = conv.modelId,
+                            currentModel = currentModel,
+                            availableModels = models,
                             error = null,
-                            attachedImageUri = null,
+                            attachedImageUris = emptyList(),
                             editingMessageId = null,
                             navigateToConversationId = null
                         )
@@ -116,12 +128,19 @@ class ChatViewModel @Inject constructor(
         _uiState.update { it.copy(inputText = text, error = null) }
     }
 
-    fun attachImage(uri: String) {
-        _uiState.update { it.copy(attachedImageUri = uri) }
+    fun attachImages(uris: List<String>) {
+        _uiState.update { it.copy(attachedImageUris = it.attachedImageUris + uris) }
     }
 
-    fun clearAttachedImage() {
-        _uiState.update { it.copy(attachedImageUri = null) }
+    fun removeAttachedImage(index: Int) {
+        _uiState.update { state ->
+            val newList = state.attachedImageUris.toMutableList().apply { removeAt(index) }
+            state.copy(attachedImageUris = newList)
+        }
+    }
+
+    fun clearAttachedImages() {
+        _uiState.update { it.copy(attachedImageUris = emptyList()) }
     }
 
     fun startEditingMessage(messageId: Long) {
@@ -131,14 +150,14 @@ class ChatViewModel @Inject constructor(
                 state.copy(
                     inputText = it.content,
                     editingMessageId = it.id,
-                    attachedImageUri = it.imageUri
+                    attachedImageUris = it.imageUris
                 )
             }
         }
     }
 
     fun cancelEditing() {
-        _uiState.update { it.copy(inputText = "", editingMessageId = null, attachedImageUri = null) }
+        _uiState.update { it.copy(inputText = "", editingMessageId = null, attachedImageUris = emptyList()) }
     }
 
     fun sendMessage() {
@@ -153,16 +172,18 @@ class ChatViewModel @Inject constructor(
         }
 
         val editingMessageId = _uiState.value.editingMessageId
-        val imageUri = _uiState.value.attachedImageUri
-        val imageBase64 = imageUri?.let { uriToBase64(it) }
+        val imageUris = _uiState.value.attachedImageUris
+        val imageBase64s = imageUris.map {
+            if (it.startsWith("content://")) uriToBase64(it) else it
+        }.filterNotNull()
 
         if (editingMessageId != null) {
-            editAndBranch(editingMessageId, text, imageBase64)
+            editInPlace(editingMessageId, text, imageBase64s)
             return
         }
 
         currentStreamingJob = viewModelScope.launch {
-            _uiState.update { it.copy(inputText = "", isLoading = true, error = null, isTyping = true, attachedImageUri = null) }
+            _uiState.update { it.copy(inputText = "", isLoading = true, error = null, attachedImageUris = emptyList()) }
 
             try {
                 var conversationId = _uiState.value.currentConversationId
@@ -175,7 +196,7 @@ class ChatViewModel @Inject constructor(
                     conversationId = conversationId,
                     role = MessageRole.User,
                     content = text,
-                    imageUri = imageBase64,
+                    imageUris = imageBase64s,
                     isStreaming = false
                 )
                 chatRepository.updateTimestamp(conversationId)
@@ -185,7 +206,7 @@ class ChatViewModel @Inject constructor(
                     conversationId = conversationId,
                     role = MessageRole.User,
                     content = text,
-                    imageUri = imageBase64
+                    imageUris = imageBase64s
                 )
                 _uiState.update { it.copy(messages = it.messages + userMessage) }
 
@@ -198,9 +219,9 @@ class ChatViewModel @Inject constructor(
                 streamAssistantResponse(conversationId, provider, modelId)
             } catch (e: Exception) {
                 if (e !is kotlinx.coroutines.CancellationException) {
-                    _uiState.update { it.copy(isLoading = false, isTyping = false, error = e.message) }
+                    _uiState.update { it.copy(isLoading = false, error = e.message) }
                 } else {
-                    _uiState.update { it.copy(isLoading = false, isTyping = false) }
+                    _uiState.update { it.copy(isLoading = false) }
                 }
             } finally {
                 currentStreamingJob = null
@@ -208,70 +229,38 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun editAndBranch(messageId: Long, newText: String, imageBase64: String?) {
+    private fun editInPlace(messageId: Long, newText: String, imageBase64s: List<String>) {
         currentStreamingJob = viewModelScope.launch {
-            _uiState.update { it.copy(inputText = "", isLoading = true, error = null, isTyping = true, editingMessageId = null, attachedImageUri = null) }
+            _uiState.update { it.copy(inputText = "", isLoading = true, error = null, editingMessageId = null, attachedImageUris = emptyList()) }
 
             try {
-                val originalConversationId = _uiState.value.currentConversationId
+                val conversationId = _uiState.value.currentConversationId
                 val provider = _uiState.value.currentProvider ?: return@launch
                 val modelId = _uiState.value.currentModelId
 
-                val originalMessages = messageRepository.getMessagesOnce(originalConversationId)
-                val messageIndex = originalMessages.indexOfFirst { it.id == messageId }
-                if (messageIndex == -1) {
-                    _uiState.update { it.copy(isLoading = false, isTyping = false, error = "Message not found") }
-                    return@launch
+                // Update the edited message
+                messageRepository.updateMessage(messageId, newText, imageBase64s)
+
+                // Delete all messages after the edited one
+                messageRepository.deleteMessagesAfter(conversationId, messageId)
+
+                // Update UI: replace edited message and remove all after it
+                val editedIndex = _uiState.value.messages.indexOfFirst { it.id == messageId }
+                val newMessages = if (editedIndex != -1) {
+                    _uiState.value.messages.take(editedIndex + 1).map { msg ->
+                        if (msg.id == messageId) msg.copy(content = newText, imageUris = imageBase64s) else msg
+                    }
+                } else {
+                    _uiState.value.messages
                 }
+                _uiState.update { it.copy(messages = newMessages) }
 
-                // Create new conversation (branch)
-                val newConversationId = chatRepository.createConversation(provider.id, modelId)
-                val prefixMessages = originalMessages.take(messageIndex)
-
-                // Copy prefix messages to new conversation
-                prefixMessages.forEach { msg ->
-                    messageRepository.addMessage(
-                        conversationId = newConversationId,
-                        role = msg.role,
-                        content = msg.content,
-                        imageUri = msg.imageUri,
-                        isStreaming = false
-                    )
-                }
-
-                // Add edited message
-                val editedMessageId = messageRepository.addMessage(
-                    conversationId = newConversationId,
-                    role = MessageRole.User,
-                    content = newText,
-                    imageUri = imageBase64,
-                    isStreaming = false
-                )
-                chatRepository.updateTimestamp(newConversationId)
-
-                // Update UI state to new conversation
-                val newMessages = prefixMessages + Message(
-                    id = editedMessageId,
-                    conversationId = newConversationId,
-                    role = MessageRole.User,
-                    content = newText,
-                    imageUri = imageBase64
-                )
-                _uiState.update {
-                    it.copy(
-                        currentConversationId = newConversationId,
-                        conversationTitle = "New Chat",
-                        messages = newMessages,
-                        navigateToConversationId = newConversationId
-                    )
-                }
-
-                streamAssistantResponse(newConversationId, provider, modelId)
+                streamAssistantResponse(conversationId, provider, modelId)
             } catch (e: Exception) {
                 if (e !is kotlinx.coroutines.CancellationException) {
-                    _uiState.update { it.copy(isLoading = false, isTyping = false, error = e.message) }
+                    _uiState.update { it.copy(isLoading = false, error = e.message) }
                 } else {
-                    _uiState.update { it.copy(isLoading = false, isTyping = false) }
+                    _uiState.update { it.copy(isLoading = false) }
                 }
             } finally {
                 currentStreamingJob = null
@@ -297,7 +286,7 @@ class ChatViewModel @Inject constructor(
             content = "",
             isStreaming = true
         )
-        _uiState.update { it.copy(messages = it.messages + assistantMessage, isTyping = false) }
+        _uiState.update { it.copy(messages = it.messages + assistantMessage) }
 
         val history = messageRepository.getMessages(conversationId).first()
             .filter { !it.isError && it.id != assistantMessageId }
@@ -346,11 +335,10 @@ class ChatViewModel @Inject constructor(
                     messages = state.messages.map { msg ->
                         if (msg.id == lastMsg.id) msg.copy(isStreaming = false) else msg
                     },
-                    isLoading = false,
-                    isTyping = false
+                    isLoading = false
                 )
             } else {
-                state.copy(isLoading = false, isTyping = false)
+                state.copy(isLoading = false)
             }
         }
     }
@@ -363,18 +351,22 @@ class ChatViewModel @Inject constructor(
                 messages = emptyList(),
                 inputText = "",
                 error = null,
-                attachedImageUri = null,
+                attachedImageUris = emptyList(),
                 editingMessageId = null,
                 navigateToConversationId = null
             )
         }
     }
 
-    fun deleteMessage(messageId: Long) {
+    fun deleteMessageAndAfter(messageId: Long) {
         viewModelScope.launch {
+            val conversationId = _uiState.value.currentConversationId
+            messageRepository.deleteMessagesAfter(conversationId, messageId)
             messageRepository.deleteMessage(messageId)
             _uiState.update { state ->
-                state.copy(messages = state.messages.filter { it.id != messageId })
+                val index = state.messages.indexOfFirst { it.id == messageId }
+                val newMessages = if (index != -1) state.messages.take(index) else state.messages
+                state.copy(messages = newMessages)
             }
         }
     }
@@ -390,8 +382,7 @@ class ChatViewModel @Inject constructor(
                 state.copy(
                     messages = state.messages.filter { it.id != messageId },
                     isLoading = true,
-                    error = null,
-                    isTyping = true
+                    error = null
                 )
             }
 
@@ -399,9 +390,9 @@ class ChatViewModel @Inject constructor(
                 streamAssistantResponse(conversationId, provider, modelId)
             } catch (e: Exception) {
                 if (e !is kotlinx.coroutines.CancellationException) {
-                    _uiState.update { it.copy(isLoading = false, isTyping = false, error = e.message) }
+                    _uiState.update { it.copy(isLoading = false, error = e.message) }
                 } else {
-                    _uiState.update { it.copy(isLoading = false, isTyping = false) }
+                    _uiState.update { it.copy(isLoading = false) }
                 }
             } finally {
                 currentStreamingJob = null
@@ -414,10 +405,32 @@ class ChatViewModel @Inject constructor(
         lastAssistant?.let { regenerateMessage(it.id) }
     }
 
+    fun switchModel(modelId: String) {
+        viewModelScope.launch {
+            val conversationId = _uiState.value.currentConversationId
+            if (conversationId != 0L) {
+                chatRepository.updateModel(conversationId, modelId)
+            }
+            val newModel = _uiState.value.availableModels.find { it.id == modelId }
+            _uiState.update { it.copy(currentModelId = modelId, currentModel = newModel) }
+        }
+    }
+
     fun setProviderAndModel(providerId: Long, modelId: String) {
         viewModelScope.launch {
             val provider = providerRepository.getProvider(providerId)
-            _uiState.update { it.copy(currentProvider = provider, currentModelId = modelId) }
+            val models = provider?.let { p ->
+                providerRepository.getModels(p.id).first()
+            } ?: emptyList()
+            val currentModel = models.find { it.id == modelId }
+            _uiState.update {
+                it.copy(
+                    currentProvider = provider,
+                    currentModelId = modelId,
+                    currentModel = currentModel,
+                    availableModels = models
+                )
+            }
         }
     }
 

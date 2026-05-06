@@ -2,11 +2,6 @@ package com.dynodevv.relay.ui.chat
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -14,7 +9,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,17 +18,18 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
@@ -63,7 +58,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
@@ -96,10 +90,17 @@ fun ChatScreen(
     val screenWidthPx = with(LocalDensity.current) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
 
     val imagePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri?.let { viewModel.attachImage(it.toString()) }
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (!uris.isNullOrEmpty()) {
+            viewModel.attachImages(uris.map { it.toString() })
+        }
     }
+
+    // Confirmation dialog states
+    var messageToDelete by remember { mutableStateOf<Long?>(null) }
+    var messageToEdit by remember { mutableStateOf<Long?>(null) }
+    var showModelMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(conversationId) {
         viewModel.loadConversation(conversationId)
@@ -151,11 +152,56 @@ fun ChatScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        Text(
-                            text = uiState.conversationTitle,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Column {
+                            Text(
+                                text = uiState.conversationTitle,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (uiState.availableModels.isNotEmpty()) {
+                                Box {
+                                    TextButton(
+                                        onClick = { showModelMenu = true },
+                                        contentPadding = PaddingValues(0.dp),
+                                        modifier = Modifier.height(20.dp)
+                                    ) {
+                                        Text(
+                                            text = uiState.currentModel?.displayName ?: uiState.currentModelId,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Default.ArrowDropDown,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = showModelMenu,
+                                        onDismissRequest = { showModelMenu = false }
+                                    ) {
+                                        uiState.availableModels.forEach { model ->
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = model.displayName,
+                                                        color = if (model.id == uiState.currentModelId)
+                                                            MaterialTheme.colorScheme.primary
+                                                        else
+                                                            MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                },
+                                                onClick = {
+                                                    viewModel.switchModel(model.id)
+                                                    showModelMenu = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     },
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
@@ -181,10 +227,11 @@ fun ChatScreen(
                     onStop = { viewModel.stopGeneration() },
                     onAttach = { imagePicker.launch("image/*") },
                     onCancelEdit = viewModel::cancelEditing,
-                    onClearAttachment = viewModel::clearAttachedImage,
+                    onRemoveImage = viewModel::removeAttachedImage,
+                    onClearImages = viewModel::clearAttachedImages,
                     isLoading = uiState.isLoading,
-                    supportsAttachments = true,
-                    attachedImageUri = uiState.attachedImageUri,
+                    supportsAttachments = uiState.currentModel?.supportsImageInput == true,
+                    attachedImageUris = uiState.attachedImageUris,
                     isEditing = uiState.editingMessageId != null,
                     modifier = Modifier
                         .navigationBarsPadding()
@@ -260,7 +307,7 @@ fun ChatScreen(
                             ) { message ->
                                 MessageBubble(
                                     message = message,
-                                    onDelete = { viewModel.deleteMessage(message.id) },
+                                    onDelete = { messageToDelete = message.id },
                                     onRegenerate = {
                                         if (message.role is MessageRole.Assistant) {
                                             viewModel.regenerateMessage(message.id)
@@ -268,16 +315,10 @@ fun ChatScreen(
                                     },
                                     onEdit = {
                                         if (message.role is MessageRole.User) {
-                                            viewModel.startEditingMessage(message.id)
+                                            messageToEdit = message.id
                                         }
                                     }
                                 )
-                            }
-
-                            if (uiState.isTyping) {
-                                item {
-                                    TypingIndicator()
-                                }
                             }
                         }
                     }
@@ -285,59 +326,58 @@ fun ChatScreen(
             }
         }
     }
-}
 
-@Composable
-private fun TypingIndicator() {
-    val infiniteTransition = rememberInfiniteTransition(label = "typing")
-    val dot1 by infiniteTransition.animateFloat(
-        initialValue = 0.3f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "dot1"
-    )
-    val dot2 by infiniteTransition.animateFloat(
-        initialValue = 0.3f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(600, delayMillis = 200), RepeatMode.Reverse), label = "dot2"
-    )
-    val dot3 by infiniteTransition.animateFloat(
-        initialValue = 0.3f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(600, delayMillis = 400), RepeatMode.Reverse), label = "dot3"
-    )
+    // Delete confirmation dialog
+    messageToDelete?.let { msgId ->
+        val msg = uiState.messages.find { it.id == msgId }
+        AlertDialog(
+            onDismissRequest = { messageToDelete = null },
+            title = { Text("Delete Message") },
+            text = {
+                Text("This will also delete all messages sent after this one. Are you sure?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteMessageAndAfter(msgId)
+                        messageToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { messageToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.Start
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        ) {
-            Text(
-                text = "Thinking",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = ".",
-                modifier = Modifier.alpha(dot1),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
-            Text(
-                text = ".",
-                modifier = Modifier.alpha(dot2),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
-            Text(
-                text = ".",
-                modifier = Modifier.alpha(dot3),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
-        }
+    // Edit confirmation dialog
+    messageToEdit?.let { msgId ->
+        AlertDialog(
+            onDismissRequest = { messageToEdit = null },
+            title = { Text("Edit Message") },
+            text = {
+                Text("This will remove all messages after this one and regenerate the response. Continue?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.startEditingMessage(msgId)
+                        messageToEdit = null
+                    }
+                ) {
+                    Text("Edit")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { messageToEdit = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -509,7 +549,7 @@ private fun ChatNavigationDrawer(
     }
 
     conversationToDelete?.let { conv ->
-        androidx.compose.material3.AlertDialog(
+        AlertDialog(
             onDismissRequest = { conversationToDelete = null },
             title = { Text("Delete Conversation") },
             text = { Text("Are you sure you want to delete \"${conv.title}\"?") },
@@ -538,7 +578,7 @@ private fun RenameDialog(
 ) {
     var text by remember { mutableStateOf(currentName) }
 
-    androidx.compose.material3.AlertDialog(
+    AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Rename Conversation") },
         text = {

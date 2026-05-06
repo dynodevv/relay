@@ -42,6 +42,10 @@ class ChatRepository @Inject constructor(
         conversationDao.updateTimestamp(id)
     }
 
+    suspend fun updateModel(id: Long, modelId: String) {
+        conversationDao.updateModel(id, modelId)
+    }
+
     private fun ConversationEntity.toDomain() = Conversation(
         id = id,
         title = title,

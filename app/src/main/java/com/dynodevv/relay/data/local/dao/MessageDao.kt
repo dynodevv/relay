@@ -33,4 +33,10 @@ interface MessageDao {
 
     @Query("UPDATE messages SET content = :content, isStreaming = :isStreaming WHERE id = :id")
     suspend fun updateContent(id: Long, content: String, isStreaming: Boolean = false)
+
+    @Query("UPDATE messages SET content = :content, imageUris = :imageUris WHERE id = :id")
+    suspend fun updateMessage(id: Long, content: String, imageUris: String)
+
+    @Query("DELETE FROM messages WHERE conversationId = :conversationId AND createdAt > (SELECT createdAt FROM messages WHERE id = :messageId)")
+    suspend fun deleteMessagesAfter(conversationId: Long, messageId: Long)
 }

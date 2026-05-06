@@ -1,16 +1,23 @@
 package com.dynodevv.relay.ui.chat.components
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,6 +42,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
@@ -120,16 +128,20 @@ fun MessageBubble(
                         Box(modifier = Modifier.padding(14.dp)) {
                             if (isUser) {
                                 Column {
-                                    if (!message.imageUri.isNullOrBlank()) {
-                                        val dataUri = "data:image/jpeg;base64,${message.imageUri}"
-                                        AsyncImage(
-                                            model = dataUri,
-                                            contentDescription = "Attached image",
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(200.dp)
-                                                .padding(bottom = 8.dp)
-                                        )
+                                    if (message.imageUris.isNotEmpty()) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            message.imageUris.forEach { base64 ->
+                                                val dataUri = "data:image/jpeg;base64,$base64"
+                                                AsyncImage(
+                                                    model = dataUri,
+                                                    contentDescription = "Attached image",
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(200.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
                                     }
                                     Text(
                                         text = message.content,
@@ -139,11 +151,7 @@ fun MessageBubble(
                                 }
                             } else {
                                 if (message.isStreaming && message.content.isEmpty()) {
-                                    Text(
-                                        text = "",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    ThinkingDots()
                                 } else if (message.isStreaming) {
                                     Text(
                                         text = message.content,
@@ -239,6 +247,53 @@ fun MessageBubble(
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
             )
         }
+    }
+}
+
+@Composable
+private fun ThinkingDots() {
+    val infiniteTransition = rememberInfiniteTransition(label = "typing")
+    val dot1 by infiniteTransition.animateFloat(
+        initialValue = 0.3f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "dot1"
+    )
+    val dot2 by infiniteTransition.animateFloat(
+        initialValue = 0.3f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(600, delayMillis = 200), RepeatMode.Reverse), label = "dot2"
+    )
+    val dot3 by infiniteTransition.animateFloat(
+        initialValue = 0.3f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(600, delayMillis = 400), RepeatMode.Reverse), label = "dot3"
+    )
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(vertical = 2.dp)
+    ) {
+        Text(
+            text = "Thinking",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = ".",
+            modifier = Modifier.alpha(dot1),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+        )
+        Text(
+            text = ".",
+            modifier = Modifier.alpha(dot2),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+        )
+        Text(
+            text = ".",
+            modifier = Modifier.alpha(dot3),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+        )
     }
 }
 

@@ -18,7 +18,7 @@ import com.dynodevv.relay.data.local.entity.ProviderEntity
         ProviderEntity::class,
         AIModelEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
