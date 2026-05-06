@@ -1,18 +1,23 @@
 # Known Issues
 
-> **Last updated:** 2026-05-05
+> **Last updated:** 2026-05-06
 
 ---
 
 ## Critical
 
-_None currently tracked._
+| Issue | Notes |
+|---|---|
+| **Drag-to-reorder is buggy and hard to use** | The long-press drag handle gesture conflicts with scroll and doesn't feel native. Drag offset calculations are approximate and reorder jumps are unreliable. Needs a proper reorderable LazyColumn implementation (e.g. `androidx.compose.foundation.lazy.items` with `Modifier.draggable` + `LazyListState` animated scroll) or a third-party reorderable library. |
 
 ---
 
 ## Minor
 
-_None currently tracked._
+| Issue | Notes |
+|---|---|
+| **Gray box still visible inside model cards** | The `AssistChip` composable inside `ModelCard` still renders a slightly lighter gray background. The `Card` → `Box` refactor didn't fully eliminate the visual artifact. Likely caused by `surfaceVariant.copy(alpha = 0.5f)` on the outer card combined with `secondaryContainer` on the chip. Needs a unified background color or border-only chip styling. |
+| **Auto-detection heuristics are incomplete** | Vision detection is solid, but Tools and Reasoning still miss many models. Provider APIs (OpenRouter, etc.) don't consistently expose capabilities in a standard format. **Proposed fix:** Build or integrate a local capability database (similar to LiteLLM's model pricing/capability JSON) that maps model IDs → capabilities, falling back to heuristics only for unknown models. This would be a significant data layer addition. |
 
 ---
 
