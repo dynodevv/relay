@@ -40,7 +40,7 @@ Room `Flow` does NOT reliably emit during rapid successive `UPDATE` queries. For
 - Do NOT write to Room on every chunk — it blocks the coroutine and stalls the UI.
 
 ### ProGuard / R8
-Release builds (`isMinifyEnabled = true`) will fail without comprehensive `-keep` rules. The current `proguard-rules.pro` is hard-won — don't trim it without testing a release build.
+Release builds (`isMinifyEnabled = true`) will fail without comprehensive `-keep` rules. `gradle.properties` also sets `android.enableR8.fullMode=true`, making obfuscation even more aggressive. The current `proguard-rules.pro` is hard-won — don't trim it without testing a release build.
 
 ## Compose Gotchas
 
@@ -72,9 +72,9 @@ Release builds (`isMinifyEnabled = true`) will fail without comprehensive `-keep
 | Colors | `app/src/main/java/com/dynodevv/relay/ui/theme/Color.kt` |
 | Typography | `app/src/main/java/com/dynodevv/relay/ui/theme/Type.kt` |
 
-## Known Issues (see [KNOWN_ISSUES.md](KNOWN_ISSUES.md))
+## Known Issues
 
-- **Streaming is inconsistent** — sometimes works, usually doesn't. Non-streaming fallback always works. Low priority.
+See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the current list.
 
 ## Adding a Dependency
 
