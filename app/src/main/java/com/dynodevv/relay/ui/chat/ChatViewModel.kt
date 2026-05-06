@@ -42,9 +42,7 @@ data class ChatUiState(
     val attachedImageUris: List<String> = emptyList(),
     val editingMessageId: Long? = null,
     val hasProviders: Boolean = true,
-    val navigateToConversationId: Long? = null,
-    val systemPrompt: String? = null,
-    val showSystemPromptDialog: Boolean = false
+    val navigateToConversationId: Long? = null
 )
 
 @HiltViewModel
@@ -110,9 +108,7 @@ class ChatViewModel @Inject constructor(
                         error = null,
                         attachedImageUris = emptyList(),
                         editingMessageId = null,
-                        navigateToConversationId = null,
-                        systemPrompt = null,
-                        showSystemPromptDialog = false
+                        navigateToConversationId = null
                     )
                 }
             } else {
@@ -136,9 +132,7 @@ class ChatViewModel @Inject constructor(
                             error = null,
                             attachedImageUris = emptyList(),
                             editingMessageId = null,
-                            navigateToConversationId = null,
-                            systemPrompt = conv.systemPrompt,
-                            showSystemPromptDialog = false
+                            navigateToConversationId = null
                         )
                     }
                 }
@@ -215,10 +209,9 @@ class ChatViewModel @Inject constructor(
 
         val editingMessageId = _uiState.value.editingMessageId
         val imagePaths = _uiState.value.attachedImageUris
-        val systemPrompt = _uiState.value.systemPrompt
 
         if (editingMessageId != null) {
-            editInPlace(editingMessageId, text, imagePaths, systemPrompt)
+            editInPlace(editingMessageId, text, imagePaths)
             return
         }
 
@@ -228,7 +221,7 @@ class ChatViewModel @Inject constructor(
             try {
                 var conversationId = _uiState.value.currentConversationId
                 if (conversationId == 0L) {
-                    conversationId = chatRepository.createConversation(provider.id, modelId, systemPrompt)
+                    conversationId = chatRepository.createConversation(provider.id, modelId)
                     _uiState.update { it.copy(currentConversationId = conversationId) }
                 }
 
@@ -256,7 +249,7 @@ class ChatViewModel @Inject constructor(
                     _uiState.update { it.copy(conversationTitle = title) }
                 }
 
-                streamAssistantResponse(conversationId, provider, modelId, systemPrompt)
+                streamAssistantResponse(conversationId, provider, modelId)
             } catch (e: Exception) {
                 if (e !is kotlinx.coroutines.CancellationException) {
                     _uiState.update { it.copy(isLoading = false, error = e.message) }
@@ -269,7 +262,7 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun editInPlace(messageId: Long, newText: String, imagePaths: List<String>, systemPrompt: String?) {
+    private fun editInPlace(messageId: Long, newText: String, imagePaths: List<String>) {
         currentStreamingJob = viewModelScope.launch {
             _uiState.update { it.copy(inputText = "", isLoading = true, error = null, editingMessageId = null, attachedImageUris = emptyList()) }
 
@@ -278,13 +271,9 @@ class ChatViewModel @Inject constructor(
                 val provider = _uiState.value.currentProvider ?: return@launch
                 val modelId = _uiState.value.currentModelId
 
-                // Update the edited message
                 messageRepository.updateMessage(messageId, newText, imagePaths)
-
-                // Delete all messages after the edited one
                 messageRepository.deleteMessagesAfter(conversationId, messageId)
 
-                // Update UI: replace edited message and remove all after it
                 val editedIndex = _uiState.value.messages.indexOfFirst { it.id == messageId }
                 val newMessages = if (editedIndex != -1) {
                     _uiState.value.messages.take(editedIndex + 1).map { msg ->
@@ -295,7 +284,7 @@ class ChatViewModel @Inject constructor(
                 }
                 _uiState.update { it.copy(messages = newMessages) }
 
-                streamAssistantResponse(conversationId, provider, modelId, systemPrompt)
+                streamAssistantResponse(conversationId, provider, modelId)
             } catch (e: Exception) {
                 if (e !is kotlinx.coroutines.CancellationException) {
                     _uiState.update { it.copy(isLoading = false, error = e.message) }
@@ -311,8 +300,7 @@ class ChatViewModel @Inject constructor(
     private suspend fun streamAssistantResponse(
         conversationId: Long,
         provider: Provider,
-        modelId: String,
-        systemPrompt: String?
+        modelId: String
     ) {
         val assistantMessageId = messageRepository.addMessage(
             conversationId = conversationId,
@@ -337,6 +325,7 @@ class ChatViewModel @Inject constructor(
                 } else msg
             }
 
+        val systemPrompt = settingsRepository.globalSystemPrompt.first()
         var accumulated = ""
         val currentModel = _uiState.value.currentModel
         chatService.streamResponse(
@@ -402,9 +391,7 @@ class ChatViewModel @Inject constructor(
                 error = null,
                 attachedImageUris = emptyList(),
                 editingMessageId = null,
-                navigateToConversationId = null,
-                systemPrompt = null,
-                showSystemPromptDialog = false
+                navigateToConversationId = null
             )
         }
     }
@@ -427,7 +414,6 @@ class ChatViewModel @Inject constructor(
             val conversationId = _uiState.value.currentConversationId
             val provider = _uiState.value.currentProvider ?: return@launch
             val modelId = _uiState.value.currentModelId
-            val systemPrompt = _uiState.value.systemPrompt
 
             messageRepository.deleteMessage(messageId)
             _uiState.update { state ->
@@ -439,7 +425,7 @@ class ChatViewModel @Inject constructor(
             }
 
             try {
-                streamAssistantResponse(conversationId, provider, modelId, systemPrompt)
+                streamAssistantResponse(conversationId, provider, modelId)
             } catch (e: Exception) {
                 if (e !is kotlinx.coroutines.CancellationException) {
                     _uiState.update { it.copy(isLoading = false, error = e.message) }
@@ -503,25 +489,6 @@ class ChatViewModel @Inject constructor(
 
     fun clearNavigation() {
         _uiState.update { it.copy(navigateToConversationId = null) }
-    }
-
-    fun showSystemPromptDialog() {
-        _uiState.update { it.copy(showSystemPromptDialog = true) }
-    }
-
-    fun dismissSystemPromptDialog() {
-        _uiState.update { it.copy(showSystemPromptDialog = false) }
-    }
-
-    fun updateSystemPrompt(prompt: String?) {
-        viewModelScope.launch {
-            val conversationId = _uiState.value.currentConversationId
-            val trimmed = prompt?.trim()?.takeIf { it.isNotEmpty() }
-            if (conversationId != 0L) {
-                chatRepository.updateSystemPrompt(conversationId, trimmed)
-            }
-            _uiState.update { it.copy(systemPrompt = trimmed, showSystemPromptDialog = false) }
-        }
     }
 
     private fun pathToBase64(path: String): String? {

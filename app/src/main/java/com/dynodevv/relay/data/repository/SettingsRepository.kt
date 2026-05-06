@@ -27,6 +27,7 @@ class SettingsRepository @Inject constructor(
         val DYNAMIC_COLORS = booleanPreferencesKey("dynamic_colors")
         val DEFAULT_PROVIDER_ID = longPreferencesKey("default_provider_id")
         val DEFAULT_MODEL_ID = stringPreferencesKey("default_model_id")
+        val GLOBAL_SYSTEM_PROMPT = stringPreferencesKey("global_system_prompt")
     }
 
     val themeMode: Flow<String> = dataStore.data.map { prefs ->
@@ -43,6 +44,10 @@ class SettingsRepository @Inject constructor(
 
     val defaultModelId: Flow<String?> = dataStore.data.map { prefs ->
         prefs[DEFAULT_MODEL_ID]
+    }
+
+    val globalSystemPrompt: Flow<String?> = dataStore.data.map { prefs ->
+        prefs[GLOBAL_SYSTEM_PROMPT]
     }
 
     suspend fun setThemeMode(mode: String) {
@@ -68,6 +73,16 @@ class SettingsRepository @Inject constructor(
         dataStore.edit { prefs ->
             prefs.remove(DEFAULT_PROVIDER_ID)
             prefs.remove(DEFAULT_MODEL_ID)
+        }
+    }
+
+    suspend fun setGlobalSystemPrompt(prompt: String?) {
+        dataStore.edit { prefs ->
+            if (prompt != null) {
+                prefs[GLOBAL_SYSTEM_PROMPT] = prompt
+            } else {
+                prefs.remove(GLOBAL_SYSTEM_PROMPT)
+            }
         }
     }
 }

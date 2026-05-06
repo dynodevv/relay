@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -43,7 +44,11 @@ class ModelsViewModel @Inject constructor(
 
     fun addModel(model: AIModel) {
         viewModelScope.launch {
+            val currentDefault = settingsRepository.defaultModelId.first()
             repository.addModel(model)
+            if (currentDefault == null) {
+                settingsRepository.setDefaultModel(model.providerId, model.id)
+            }
         }
     }
 
@@ -59,9 +64,9 @@ class ModelsViewModel @Inject constructor(
         }
     }
 
-    fun toggleFavorite(model: AIModel) {
+    fun reorderModels(models: List<AIModel>) {
         viewModelScope.launch {
-            repository.setModelFavorite(model.id, model.providerId, !model.isFavorite)
+            repository.updateModelSortOrders(models)
         }
     }
 
@@ -115,8 +120,15 @@ class ModelsViewModel @Inject constructor(
 
     fun addFetchedModels(models: List<AIModel>) {
         viewModelScope.launch {
+            val currentDefault = settingsRepository.defaultModelId.first()
+            var defaultSet = currentDefault != null
+
             models.forEach { model ->
                 repository.addModel(model)
+                if (!defaultSet) {
+                    settingsRepository.setDefaultModel(model.providerId, model.id)
+                    defaultSet = true
+                }
             }
             _fetchedModels.value = null
         }

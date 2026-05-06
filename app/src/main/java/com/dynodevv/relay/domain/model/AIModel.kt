@@ -10,6 +10,7 @@ data class AIModel(
     val contextLength: Int? = null,
     val isCustom: Boolean = true,
     val isFavorite: Boolean = false,
+    val sortOrder: Int = 0,
     val temperature: Double? = null,
     val maxTokens: Int? = null,
     val topP: Double? = null,

@@ -26,6 +26,12 @@ val MIGRATION_3_6 = object : Migration(3, 6) {
     }
 }
 
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE ai_models ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 @Database(
     entities = [
         ConversationEntity::class,
@@ -33,7 +39,7 @@ val MIGRATION_3_6 = object : Migration(3, 6) {
         ProviderEntity::class,
         AIModelEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

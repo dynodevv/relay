@@ -1,6 +1,8 @@
 package com.dynodevv.relay.ui.models
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,20 +14,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -40,6 +41,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -55,6 +57,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -78,9 +82,18 @@ fun ModelsScreen(
     var searchQuery by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val filteredModels = remember(models, searchQuery) {
-        if (searchQuery.isBlank()) models
-        else models.filter {
+    var reorderedModels by remember(models) { mutableStateOf(models) }
+    LaunchedEffect(models) {
+        reorderedModels = models
+    }
+
+    var draggedIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffset by remember { mutableStateOf(0f) }
+    val canReorder = searchQuery.isBlank()
+
+    val filteredModels = remember(reorderedModels, searchQuery) {
+        if (searchQuery.isBlank()) reorderedModels
+        else reorderedModels.filter {
             it.displayName.contains(searchQuery, ignoreCase = true) ||
             it.id.contains(searchQuery, ignoreCase = true)
         }
@@ -103,29 +116,34 @@ fun ModelsScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                actions = {
-                    IconButton(onClick = { viewModel.fetchModelsFromApi(providerId) }) {
-                        if (isFetching) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(
-                                Icons.Default.CloudDownload,
-                                contentDescription = "Fetch from API"
-                            )
-                        }
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddModel) {
-                Icon(Icons.Default.Add, contentDescription = "Add model")
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                SmallFloatingActionButton(
+                    onClick = { viewModel.fetchModelsFromApi(providerId) }
+                ) {
+                    if (isFetching) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.CloudDownload,
+                            contentDescription = "Fetch from API"
+                        )
+                    }
+                }
+                FloatingActionButton(onClick = onAddModel) {
+                    Icon(Icons.Default.Add, contentDescription = "Add model")
+                }
             }
         }
     ) { padding ->
@@ -151,15 +169,42 @@ fun ModelsScreen(
                 Spacer(Modifier.height(4.dp))
             }
 
-            items(filteredModels, key = { "${it.providerId}_${it.id}" }) { model ->
+            itemsIndexed(filteredModels, key = { _, model -> "${model.providerId}_${model.id}" }) { index, model ->
+                val isDragged = draggedIndex == index && canReorder
                 ModelCard(
                     model = model,
                     isDefault = model.id == defaultModelId,
+                    isDragged = isDragged,
+                    dragOffset = if (isDragged) dragOffset else 0f,
+                    canReorder = canReorder,
                     onEdit = { modelToEdit = model },
                     onDelete = { modelToDelete = model },
-                    onToggleFavorite = { viewModel.toggleFavorite(model) },
                     onSetDefault = { viewModel.setAsDefault(model.providerId, model.id) },
-                    onClearDefault = { viewModel.clearDefault() }
+                    onClearDefault = { viewModel.clearDefault() },
+                    onDragStart = { draggedIndex = index; dragOffset = 0f },
+                    onDrag = { offset ->
+                        dragOffset += offset
+                        val currentIdx = draggedIndex ?: return@ModelCard
+                        val itemHeightPx = 160f // approx card height in px
+                        val itemsMoved = (dragOffset / itemHeightPx).toInt()
+                        if (itemsMoved != 0) {
+                            val newIndex = (currentIdx + itemsMoved)
+                                .coerceIn(0, reorderedModels.size - 1)
+                            if (newIndex != currentIdx) {
+                                reorderedModels = reorderedModels.toMutableList().apply {
+                                    val item = removeAt(currentIdx)
+                                    add(newIndex, item)
+                                }
+                                draggedIndex = newIndex
+                                dragOffset = 0f
+                            }
+                        }
+                    },
+                    onDragEnd = {
+                        viewModel.reorderModels(reorderedModels)
+                        draggedIndex = null
+                        dragOffset = 0f
+                    }
                 )
             }
 
@@ -257,7 +302,7 @@ private fun FetchModelsDialog(
                         .fillMaxWidth()
                         .height(320.dp)
                 ) {
-                    items(filteredModels) { model ->
+                    itemsIndexed(filteredModels) { _, model ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -472,27 +517,64 @@ private fun EditModelDialog(
 private fun ModelCard(
     model: AIModel,
     isDefault: Boolean,
+    isDragged: Boolean,
+    dragOffset: Float,
+    canReorder: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onToggleFavorite: () -> Unit,
     onSetDefault: () -> Unit,
-    onClearDefault: () -> Unit
+    onClearDefault: () -> Unit,
+    onDragStart: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onDragEnd: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                if (isDragged) {
+                    translationY = dragOffset
+                    shadowElevation = 8f
+                    alpha = 0.9f
+                }
+            },
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isDragged) 4.dp else 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (canReorder) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .pointerInput(Unit) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = { onDragStart() },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        onDrag(dragAmount.y)
+                                    },
+                                    onDragEnd = { onDragEnd() }
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DragHandle,
+                            contentDescription = "Drag to reorder",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.size(8.dp))
+                }
                 Icon(
                     Icons.Default.Memory,
                     contentDescription = null,
@@ -520,13 +602,6 @@ private fun ModelCard(
                         text = model.id,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                IconButton(onClick = onToggleFavorite) {
-                    Icon(
-                        imageVector = if (model.isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                        contentDescription = if (model.isFavorite) "Unfavorite" else "Favorite",
-                        tint = if (model.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -591,17 +666,18 @@ private fun ModelCard(
 
 @Composable
 private fun AssistChip(label: String) {
-    Card(
-        modifier = Modifier.padding(end = 6.dp),
-        shape = MaterialTheme.shapes.small,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
-        )
+    Box(
+        modifier = Modifier
+            .padding(end = 6.dp)
+            .background(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = MaterialTheme.shapes.small
+            )
+            .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             color = MaterialTheme.colorScheme.onSecondaryContainer
         )
     }

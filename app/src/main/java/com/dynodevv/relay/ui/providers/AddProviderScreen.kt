@@ -33,7 +33,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
@@ -41,6 +40,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.dynodevv.relay.domain.model.Provider
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.FlowRow
 
 val ProviderPresets = listOf(
     Provider(name = "OpenAI", apiBaseUrl = "https://api.openai.com/v1", iconName = "openai"),
@@ -98,26 +99,12 @@ fun AddProviderScreen(
                 color = MaterialTheme.colorScheme.primary
             )
 
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                ProviderPresets.take(4).forEach { preset ->
-                    SuggestionChip(
-                        onClick = {
-                            name = preset.name
-                            apiBaseUrl = preset.apiBaseUrl
-                            apiPath = preset.apiPath
-                        },
-                        label = { Text(preset.name) }
-                    )
-                }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ProviderPresets.drop(4).forEach { preset ->
+                ProviderPresets.forEach { preset ->
                     SuggestionChip(
                         onClick = {
                             name = preset.name

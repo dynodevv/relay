@@ -51,11 +51,11 @@ This project uses **phases** instead of rigid versions. Each phase builds on the
 - [x] **Provider health check** — Test connection button to verify API key + endpoint works
 - [x] **Provider icons / logos** — Visual identifiers for each provider (instead of generic cloud icon)
 - [x] **Provider quick-setup presets** — One-tap setup with pre-filled base URLs
-- [x] **Model grouping / favorites** — Pin frequently used models to the top
-- [x] **Model search & filter** — Search through fetched model lists
+- [x] **Model drag-to-reorder** — Long-press drag handle to rearrange model list order
+- [x] **Model search & filter** — Search through saved and fetched model lists
 - [x] **Per-model parameters** — Temperature, max tokens, top-p, top-k, presence/frequency penalty
-- [x] **System prompt per conversation** — Custom system instructions for each chat thread
-- [x] **Default model selection** — Remember last used model or set a global default
+- [x] **Global system prompt** — App-wide custom instructions editable from Settings, with a smart default
+- [x] **Default model selection** — Auto-set first model as default; manually set/clear global default
 - [x] **Model capability auto-detection** — Better heuristics for vision/tools/reasoning from API metadata
 
 ---

@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -43,7 +42,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -103,7 +101,6 @@ fun ChatScreen(
     var messageToDelete by remember { mutableStateOf<Long?>(null) }
     var showEditConfirm by remember { mutableStateOf(false) }
     var showModelMenu by remember { mutableStateOf(false) }
-    var showChatMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(conversationId) {
         viewModel.loadConversation(conversationId)
@@ -214,23 +211,6 @@ fun ChatScreen(
                     actions = {
                         IconButton(onClick = { viewModel.startNewChat() }) {
                             Icon(Icons.Default.Add, contentDescription = "New chat")
-                        }
-                        Box {
-                            IconButton(onClick = { showChatMenu = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "Chat options")
-                            }
-                            DropdownMenu(
-                                expanded = showChatMenu,
-                                onDismissRequest = { showChatMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("System Prompt") },
-                                    onClick = {
-                                        viewModel.showSystemPromptDialog()
-                                        showChatMenu = false
-                                    }
-                                )
-                            }
                         }
                     },
                     scrollBehavior = scrollBehavior,
@@ -403,60 +383,6 @@ fun ChatScreen(
             }
         )
     }
-
-    // System Prompt dialog
-    if (uiState.showSystemPromptDialog) {
-        SystemPromptDialog(
-            currentPrompt = uiState.systemPrompt,
-            onDismiss = { viewModel.dismissSystemPromptDialog() },
-            onSave = { viewModel.updateSystemPrompt(it) }
-        )
-    }
-}
-
-@Composable
-private fun SystemPromptDialog(
-    currentPrompt: String?,
-    onDismiss: () -> Unit,
-    onSave: (String?) -> Unit
-) {
-    var text by remember { mutableStateOf(currentPrompt ?: "") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("System Prompt") },
-        text = {
-            Column {
-                Text(
-                    text = "Custom instructions for this conversation.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    label = { Text("Instructions") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large,
-                    minLines = 3,
-                    maxLines = 6
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onSave(text.trim().takeIf { it.isNotEmpty() }) }
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
 }
 
 @Composable

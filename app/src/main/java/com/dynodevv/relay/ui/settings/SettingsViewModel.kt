@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.dynodevv.relay.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -26,6 +27,10 @@ class SettingsViewModel @Inject constructor(
     val defaultModelId = repository.defaultModelId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    val globalSystemPrompt = repository.globalSystemPrompt
+        .map { it ?: RelayDefaultSystemPrompt }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), RelayDefaultSystemPrompt)
+
     fun setThemeMode(mode: String) {
         viewModelScope.launch {
             repository.setThemeMode(mode)
@@ -37,4 +42,32 @@ class SettingsViewModel @Inject constructor(
             repository.setDynamicColors(enabled)
         }
     }
+
+    fun setGlobalSystemPrompt(prompt: String?) {
+        viewModelScope.launch {
+            repository.setGlobalSystemPrompt(prompt)
+        }
+    }
 }
+
+val RelayDefaultSystemPrompt = """You are Relay, a helpful AI assistant. Follow these guidelines:
+
+**Communication**
+- Be concise but thorough. Prioritize clarity.
+- Adapt your tone to match the user's style.
+- Use markdown formatting (bold, lists, code blocks) to improve readability.
+
+**Code & Technical**
+- When writing code, always use fenced code blocks with the correct language identifier.
+- Explain what the code does, not just provide it.
+- For debugging, explain the root cause, not just the fix.
+
+**Accuracy & Honesty**
+- If you're unsure about something, say so rather than guessing.
+- Distinguish between facts and opinions.
+- If a question is ambiguous, ask clarifying questions.
+
+**Reasoning**
+- For complex problems, show your reasoning step by step.
+- Consider edge cases and alternatives when relevant.
+- Be helpful, harmless, and honest."""
