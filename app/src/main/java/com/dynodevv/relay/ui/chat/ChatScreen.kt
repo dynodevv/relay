@@ -239,9 +239,7 @@ fun ChatScreen(
                     supportsAttachments = uiState.currentModel?.supportsImageInput == true,
                     attachedImageUris = uiState.attachedImageUris,
                     isEditing = uiState.editingMessageId != null,
-                    modifier = Modifier
-                        .navigationBarsPadding()
-                        .imePadding()
+                    modifier = Modifier.imePadding()
                 )
             }
         ) { padding ->
