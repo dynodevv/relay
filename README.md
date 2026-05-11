@@ -2,6 +2,8 @@
 
 A modern Android AI chat client with BYOK (Bring Your Own Key) support.
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/dynodevv/relay)
+
 ## Features
 
 - **BYOK Support** — Use your own API keys for OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, and any custom OpenAI-compatible provider.
