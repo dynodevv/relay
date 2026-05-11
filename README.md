@@ -1,8 +1,14 @@
-# Relay
+<p align="center">
+  <img src="./assets/relayicon.png" width="120" alt="Relay icon">
+</p>
 
-A modern Android AI chat client with BYOK (Bring Your Own Key) support.
+<h1 align="center">Relay</h1>
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/dynodevv/relay)
+<p align="center">A modern Android AI chat client with BYOK (Bring Your Own Key) support.</p>
+
+<p align="center">
+  <a href="https://deepwiki.com/dynodevv/relay"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
+</p>
 
 ## Features
 
@@ -37,7 +43,7 @@ See [ROADMAP.md](ROADMAP.md) for planned features and future development.
 
 | Chat Interface | Model Fetching |
 | :---: | :---: |
-| <img src="./screenshots/chat.png" width="300"> | <img src="./screenshots/modelfetch.png" width="300"> |
+| <img src="./assets/chat.png" width="300"> | <img src="./assets/modelfetch.png" width="300"> |
 
 ## License
 
