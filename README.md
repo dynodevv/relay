@@ -41,9 +41,13 @@ See [ROADMAP.md](ROADMAP.md) for planned features and future development.
 
 ## Screenshots
 
+<div align="center">
+
 | Chat Interface | Model Fetching |
 | :---: | :---: |
 | <img src="./assets/chat.png" width="300"> | <img src="./assets/modelfetch.png" width="300"> |
+
+</div>
 
 ## License
 
