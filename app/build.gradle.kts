@@ -126,6 +126,9 @@ dependencies {
     // Markdown rendering
     implementation("com.mikepenz:multiplatform-markdown-renderer-m3:0.31.0")
 
+    // Reorderable lazy lists
+    implementation("sh.calvin.reorderable:reorderable:3.1.0")
+
     // Coil for images
     implementation("io.coil-kt:coil-compose:2.7.0")
 

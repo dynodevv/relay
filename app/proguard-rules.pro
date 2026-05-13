@@ -70,3 +70,7 @@
 -dontwarn okhttp3.**
 -keep class okio.** { *; }
 -dontwarn okio.**
+
+# Reorderable
+-keep class sh.calvin.reorderable.** { *; }
+-dontwarn sh.calvin.reorderable.**

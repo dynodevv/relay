@@ -1,8 +1,9 @@
 package com.dynodevv.relay.ui.models
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -57,12 +59,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dynodevv.relay.domain.model.AIModel
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,8 +90,6 @@ fun ModelsScreen(
         reorderedModels = models
     }
 
-    var draggedIndex by remember { mutableStateOf<Int?>(null) }
-    var dragOffset by remember { mutableStateOf(0f) }
     val canReorder = searchQuery.isBlank()
 
     val filteredModels = remember(reorderedModels, searchQuery) {
@@ -96,6 +97,17 @@ fun ModelsScreen(
         else reorderedModels.filter {
             it.displayName.contains(searchQuery, ignoreCase = true) ||
             it.id.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    val listState = rememberLazyListState()
+    val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
+        val fromIndex = from.index - 1
+        val toIndex = to.index - 1
+        if (fromIndex in reorderedModels.indices && toIndex in reorderedModels.indices) {
+            reorderedModels = reorderedModels.toMutableList().apply {
+                add(toIndex, removeAt(fromIndex))
+            }
         }
     }
 
@@ -152,6 +164,7 @@ fun ModelsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 16.dp),
+            state = listState,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
@@ -169,43 +182,36 @@ fun ModelsScreen(
                 Spacer(Modifier.height(4.dp))
             }
 
-            itemsIndexed(filteredModels, key = { _, model -> "${model.providerId}_${model.id}" }) { index, model ->
-                val isDragged = draggedIndex == index && canReorder
-                ModelCard(
-                    model = model,
-                    isDefault = model.id == defaultModelId,
-                    isDragged = isDragged,
-                    dragOffset = if (isDragged) dragOffset else 0f,
-                    canReorder = canReorder,
-                    onEdit = { modelToEdit = model },
-                    onDelete = { modelToDelete = model },
-                    onSetDefault = { viewModel.setAsDefault(model.providerId, model.id) },
-                    onClearDefault = { viewModel.clearDefault() },
-                    onDragStart = { draggedIndex = index; dragOffset = 0f },
-                    onDrag = { offset ->
-                        dragOffset += offset
-                        val currentIdx = draggedIndex ?: return@ModelCard
-                        val itemHeightPx = 160f // approx card height in px
-                        val itemsMoved = (dragOffset / itemHeightPx).toInt()
-                        if (itemsMoved != 0) {
-                            val newIndex = (currentIdx + itemsMoved)
-                                .coerceIn(0, reorderedModels.size - 1)
-                            if (newIndex != currentIdx) {
-                                reorderedModels = reorderedModels.toMutableList().apply {
-                                    val item = removeAt(currentIdx)
-                                    add(newIndex, item)
-                                }
-                                draggedIndex = newIndex
-                                dragOffset = 0f
-                            }
-                        }
-                    },
-                    onDragEnd = {
-                        viewModel.reorderModels(reorderedModels)
-                        draggedIndex = null
-                        dragOffset = 0f
-                    }
-                )
+            itemsIndexed(
+                filteredModels,
+                key = { _, model -> "${model.providerId}_${model.id}" }
+            ) { _, model ->
+                ReorderableItem(
+                    state = reorderableState,
+                    key = "${model.providerId}_${model.id}"
+                ) { isDragging ->
+                    val elevation by animateDpAsState(
+                        targetValue = if (isDragging) 8.dp else 1.dp,
+                        label = "dragElevation"
+                    )
+                    val dragHandleModifier = if (canReorder) {
+                        Modifier.draggableHandle(
+                            onDragStopped = { viewModel.reorderModels(reorderedModels) }
+                        )
+                    } else null
+
+                    ModelCard(
+                        model = model,
+                        isDefault = model.id == defaultModelId,
+                        elevation = elevation,
+                        canReorder = canReorder,
+                        dragHandleModifier = dragHandleModifier,
+                        onEdit = { modelToEdit = model },
+                        onDelete = { modelToDelete = model },
+                        onSetDefault = { viewModel.setAsDefault(model.providerId, model.id) },
+                        onClearDefault = { viewModel.clearDefault() }
+                    )
+                }
             }
 
             item { Spacer(Modifier.height(80.dp)) }
@@ -517,54 +523,34 @@ private fun EditModelDialog(
 private fun ModelCard(
     model: AIModel,
     isDefault: Boolean,
-    isDragged: Boolean,
-    dragOffset: Float,
+    elevation: Dp,
     canReorder: Boolean,
+    dragHandleModifier: Modifier?,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onSetDefault: () -> Unit,
-    onClearDefault: () -> Unit,
-    onDragStart: () -> Unit,
-    onDrag: (Float) -> Unit,
-    onDragEnd: () -> Unit
+    onClearDefault: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer {
-                if (isDragged) {
-                    translationY = dragOffset
-                    shadowElevation = 8f
-                    alpha = 0.9f
-                }
-            },
+        modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isDragged) 4.dp else 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (canReorder) {
+                if (canReorder && dragHandleModifier != null) {
                     Box(
                         modifier = Modifier
                             .size(32.dp)
-                            .pointerInput(Unit) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = { onDragStart() },
-                                    onDrag = { change, dragAmount ->
-                                        change.consume()
-                                        onDrag(dragAmount.y)
-                                    },
-                                    onDragEnd = { onDragEnd() }
-                                )
-                            },
+                            .then(dragHandleModifier),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -669,8 +655,9 @@ private fun AssistChip(label: String) {
     Box(
         modifier = Modifier
             .padding(end = 6.dp)
-            .background(
-                color = MaterialTheme.colorScheme.secondaryContainer,
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                 shape = MaterialTheme.shapes.small
             )
             .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -678,7 +665,7 @@ private fun AssistChip(label: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSecondaryContainer
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

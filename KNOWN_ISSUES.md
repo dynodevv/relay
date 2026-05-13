@@ -1,27 +1,29 @@
 # Known Issues
 
-> **Last updated:** 2026-05-06
+> **Last updated:** 2026-05-13
 
 ---
 
 ## Critical
 
-| Issue | Notes |
-|---|---|
-| **Drag-to-reorder is buggy and hard to use** | The long-press drag handle gesture conflicts with scroll and doesn't feel native. Drag offset calculations are approximate and reorder jumps are unreliable. Needs a proper reorderable LazyColumn implementation (e.g. `androidx.compose.foundation.lazy.items` with `Modifier.draggable` + `LazyListState` animated scroll) or a third-party reorderable library. |
+_No critical issues at this time._
 
 ---
 
 ## Minor
 
-| Issue | Notes |
-|---|---|
-| **Gray box still visible inside model cards** | The `AssistChip` composable inside `ModelCard` still renders a slightly lighter gray background. The `Card` → `Box` refactor didn't fully eliminate the visual artifact. Likely caused by `surfaceVariant.copy(alpha = 0.5f)` on the outer card combined with `secondaryContainer` on the chip. Needs a unified background color or border-only chip styling. |
-| **Auto-detection heuristics are incomplete** | Vision detection is solid, but Tools and Reasoning still miss many models. Provider APIs (OpenRouter, etc.) don't consistently expose capabilities in a standard format. **Proposed fix:** Build or integrate a local capability database (similar to LiteLLM's model pricing/capability JSON) that maps model IDs → capabilities, falling back to heuristics only for unknown models. This would be a significant data layer addition. |
+_No minor issues at this time._
 
 ---
 
 ## Resolved
+
+| Issue | Resolution |
+|---|---|
+| **Drag-to-reorder is buggy and hard to use** | **Fixed!** Replaced custom `detectDragGesturesAfterLongPress` implementation with `sh.calvin.reorderable:reorderable` library. Uses actual item positions from `LazyListState`, supports edge auto-scroll, and animates item placement natively. |
+| **Gray box still visible inside model cards** | **Fixed!** Switched `AssistChip` from filled `secondaryContainer` background to border-only styling (`outline.copy(alpha = 0.5f)`), eliminating the color layering artifact against the semi-transparent card. |
+| **Auto-detection heuristics are incomplete** | **Fixed!** Added `ModelCapabilityDatabase` with exact + prefix matching for known model IDs (OpenAI, Anthropic, Google, Groq, DeepSeek, Mistral, xAI, etc.). Detection now queries the local database first and falls back to heuristics only for unknown models. |
+| Streaming Responses Are Inconsistent | **Fixed!** Client-side word-by-word emission guarantees typing effect regardless of server buffering. Markdown renders after streaming completes. |
 
 | Issue | Resolution |
 |---|---|
