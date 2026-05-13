@@ -204,6 +204,12 @@ fun SettingsScreen(
                             onCheckedChange = { viewModel.setCapabilityCacheAutoUpdate(it) }
                         )
                     }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = "Not all models are in the LiteLLM database. If capabilities are missing for a fetched model, you can edit them manually from the model list.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
