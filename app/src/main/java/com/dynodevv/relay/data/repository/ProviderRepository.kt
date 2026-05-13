@@ -108,9 +108,8 @@ class ProviderRepository @Inject constructor(
         val idLower = modelId.lowercase()
         if (idLower.contains("vision")) return true
         if (idLower.contains("gpt-4o")) return true
-        if (idLower.contains("claude-3")) return true
-        if (idLower.contains("gemini-1.5") || idLower.contains("gemini-2")) return true
-        if (idLower.contains("gemini-pro-vision")) return true
+        if (idLower.contains("claude-")) return true          // all modern Claude models
+        if (idLower.contains("gemini-")) return true           // all Gemini models
         if (idLower.contains("llava")) return true
         if (idLower.contains("pixtral")) return true
         if (idLower.contains("grok-2-vision")) return true
@@ -123,17 +122,19 @@ class ProviderRepository @Inject constructor(
         val idLower = modelId.lowercase()
         val descLower = dto.description?.lowercase() ?: ""
 
-        if (idLower.contains("gpt-4")) return true
-        if (idLower.contains("claude-3")) return true
-        if (idLower.contains("gemini-1.5") || idLower.contains("gemini-2") || idLower.contains("gemini-pro") || idLower.contains("gemini-ultra") || idLower.contains("gemini-flash")) return true
+        if (idLower.contains("gpt-4") || idLower.contains("gpt-3.5-turbo")) return true
+        if (idLower.contains("claude-")) return true           // all Claude
+        if (idLower.contains("gemini-")) return true           // all Gemini
         if (idLower.contains("command-r") || idLower.contains("command-r7b")) return true
         if (idLower.contains("mixtral-8x22b") || idLower.contains("mixtral-large")) return true
         if (idLower.contains("qwen2.5") || idLower.contains("qwen-2.5") || idLower.contains("qwen-max") || idLower.contains("qwen-plus")) return true
         if (idLower.contains("llama-3.1") || idLower.contains("llama-3.2") || idLower.contains("llama-3.3")) return true
-        if (idLower.contains("mistral-large") || idLower.contains("mistral-medium") || idLower.contains("pixtral")) return true
+        if (idLower.contains("mistral-large") || idLower.contains("mistral-medium") || idLower.contains("mistral-small") || idLower.contains("pixtral")) return true
         if (idLower.contains("command") && idLower.contains("cohere")) return true
         if (idLower.contains("grok-2") || idLower.contains("grok2")) return true
-        if (idLower.contains("nova-pro") || idLower.contains("nova-premier")) return true
+        if (idLower.contains("nova-pro") || idLower.contains("nova-premier") || idLower.contains("nova-2")) return true
+        if (idLower.contains("deepseek-chat") || idLower.contains("deepseek-v3")) return true
+        if (idLower.contains("phi-4") || idLower.contains("phi-3")) return true
 
         if (descLower.contains("tool") || descLower.contains("function calling") || descLower.contains("function-calling")) return true
 
@@ -147,13 +148,15 @@ class ProviderRepository @Inject constructor(
         if (idLower.contains("o1") || idLower.contains("o3") || idLower.contains("o4")) return true
         if (idLower.contains("reasoning")) return true
         if (idLower.contains("deepseek-r")) return true
-        if (idLower.contains("claude-3-7") || idLower.contains("claude-3.7")) return true
+        if (idLower.contains("claude-3-7") || idLower.contains("claude-3.7") || idLower.contains("claude-opus-4")) return true
         if (idLower.contains("claude-3-5-sonnet") && idLower.contains("thinking")) return true
         if (idLower.contains("kimi-k1") || idLower.contains("kimi-k2")) return true
         if (idLower.contains("qwq")) return true
         if (idLower.contains("gemini-2.0-flash-thinking") || idLower.contains("gemini-2.5-pro")) return true
         if (idLower.contains("grok-3") || idLower.contains("grok3")) return true
         if (idLower.contains("deepseek-v3") && (idLower.contains("0324") || idLower.contains("2501"))) return true
+        if (idLower.contains("nemotron") && idLower.contains("reasoning")) return true
+        if (idLower.contains("trinity") && idLower.contains("thinking")) return true
 
         if (descLower.contains("reasoning") || descLower.contains("chain of thought") || descLower.contains("thinking")) return true
 

@@ -23,6 +23,14 @@ class CapabilityCacheRepository @Inject constructor(
         private const val LITELLM_CATALOG_URL =
             "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
         private const val ONE_DAY_MS = 24 * 60 * 60 * 1000L
+
+        /** Suffixes that providers (especially OpenRouter) append to model IDs
+         *  but which LiteLLM does not include in its keys. */
+        private val STRIP_SUFFIXES = listOf(
+            ":free", ":beta", ":extended", ":online", ":self-hosted",
+            ":nano", ":fast", ":nitro", ":search-preview", ":audio-preview",
+            "-fast", "-nitro", "-extended"
+        )
     }
 
     data class Capabilities(
@@ -52,54 +60,89 @@ class CapabilityCacheRepository @Inject constructor(
         val map = loadMemoryCache()
         val idLower = modelId.lowercase()
 
-        // Strategy 1: exact match
-        map[idLower]?.let { return it }
+        // Generate variants of the model ID to try matching
+        val variants = generateLookupVariants(idLower)
 
-        // Strategy 2: strip everything before last '/' (provider prefix)
-        // e.g. "openai/gpt-4o" -> "gpt-4o"
-        //      "openrouter/anthropic/claude-3-sonnet" -> "claude-3-sonnet"
-        val lastSlash = idLower.lastIndexOf('/')
-        if (lastSlash != -1) {
-            map[idLower.substring(lastSlash + 1)]?.let { return it }
+        for (variant in variants) {
+            map[variant]?.let { return it }
         }
 
-        // Strategy 3: strip everything before first '.' (bedrock style)
-        // e.g. "anthropic.claude-3-sonnet-20240229-v1:0" -> "claude-3-sonnet-20240229-v1:0"
+        // Final fallback: find any LiteLLM key whose *base name* matches
+        // our base name (handles minor version differences)
+        val ourBase = baseName(idLower)
+        for ((key, caps) in map) {
+            if (baseName(key) == ourBase) return caps
+        }
+
+        return null
+    }
+
+    /** Produce every reasonable canonical form of a model ID for lookup. */
+    private fun generateLookupVariants(idLower: String): List<String> {
+        val variants = mutableSetOf<String>()
+
+        // 1. Exact
+        variants += idLower
+
+        // 2. With openrouter/ prepended (OpenRouter API strips this prefix)
+        if (!idLower.startsWith("openrouter/")) {
+            variants += "openrouter/$idLower"
+        }
+
+        // 3. Strip provider-slash prefixes that LiteLLM sometimes embeds
+        val providerSlashPrefixes = listOf(
+            "anthropic/", "openai/", "google/", "mistralai/", "meta-llama/",
+            "deepseek/", "microsoft/", "nvidia/", "qwen/", "meta/",
+            "ai21/", "cohere/", "xai/", "baidu/", "nousresearch/"
+        )
+        for (prefix in providerSlashPrefixes) {
+            if (idLower.startsWith(prefix)) {
+                variants += idLower.removePrefix(prefix)
+                variants += "openrouter/$idLower"
+            }
+        }
+
+        // 4. Strip Bedrock dot-prefix
         val firstDot = idLower.indexOf('.')
         if (firstDot != -1) {
             val afterDot = idLower.substring(firstDot + 1)
-            map[afterDot]?.let { return it }
-            map[afterDot.replace('.', '-')]?.let { return it }
+            variants += afterDot
+            variants += afterDot.replace('.', '-')
         }
 
-        // Strategy 4: for multi-slash paths, try each suffix segment
-        // e.g. "openrouter/openai/gpt-4o" -> "openai/gpt-4o" -> "gpt-4o"
-        val segments = idLower.split('/')
-        if (segments.size > 2) {
-            for (i in 1 until segments.size - 1) {
-                val suffix = segments.subList(i, segments.size).joinToString("/")
-                map[suffix]?.let { return it }
+        // 5. Strip known provider-added suffixes and retry all above
+        val stripped = stripSuffixes(idLower)
+        if (stripped != idLower) {
+            variants += stripped
+            variants += "openrouter/$stripped"
+            for (prefix in providerSlashPrefixes) {
+                if (stripped.startsWith(prefix)) {
+                    variants += stripped.removePrefix(prefix)
+                    variants += "openrouter/$stripped"
+                }
             }
         }
 
-        // Strategy 5: try stripping common provider prefixes
-        val providerPrefixes = listOf(
-            "anthropic.", "openai.", "google.", "mistralai.", "meta.",
-            "azure/", "aws/", "bedrock/", "groq/", "together_ai/",
-            "openrouter/", "ai21/", "cohere/", "xai/"
-        )
-        for (prefix in providerPrefixes) {
-            if (idLower.startsWith(prefix)) {
-                map[idLower.removePrefix(prefix)]?.let { return it }
+        // 6. Take last path segment (base name) alone
+        variants += baseName(idLower)
+        variants += baseName(stripped)
+
+        return variants.toList()
+    }
+
+    private fun stripSuffixes(id: String): String {
+        var result = id
+        for (suffix in STRIP_SUFFIXES) {
+            if (result.endsWith(suffix)) {
+                result = result.removeSuffix(suffix)
             }
         }
+        return result
+    }
 
-        // Strategy 6: find any LiteLLM key that ends with the base name
-        // e.g. provider returns "claude-3-sonnet", LiteLLM has "openrouter/anthropic/claude-3-sonnet"
-        val baseName = segments.lastOrNull() ?: idLower
-        map.entries.firstOrNull { it.key.endsWith(baseName) || baseName.endsWith(it.key) }?.value?.let { return it }
-
-        return null
+    private fun baseName(id: String): String {
+        val lastSlash = id.lastIndexOf('/')
+        return if (lastSlash != -1) id.substring(lastSlash + 1) else id
     }
 
     suspend fun shouldSync(): Boolean {
