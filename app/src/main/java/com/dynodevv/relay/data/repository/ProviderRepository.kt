@@ -87,7 +87,24 @@ class ProviderRepository @Inject constructor(
     }
 
     private suspend fun detectVisionCapability(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
-        capabilityCacheRepository.lookup(modelId)?.let { return it.vision }
+        val cached = capabilityCacheRepository.lookup(modelId)
+        val heuristic = heuristicVision(modelId, dto)
+        return cached?.vision == true || heuristic
+    }
+
+    private suspend fun detectToolsCapability(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
+        val cached = capabilityCacheRepository.lookup(modelId)
+        val heuristic = heuristicTools(modelId, dto)
+        return cached?.tools == true || heuristic
+    }
+
+    private suspend fun detectReasoningCapability(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
+        val cached = capabilityCacheRepository.lookup(modelId)
+        val heuristic = heuristicReasoning(modelId, dto)
+        return cached?.reasoning == true || heuristic
+    }
+
+    private fun heuristicVision(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
         val idLower = modelId.lowercase()
         if (idLower.contains("vision")) return true
         if (idLower.contains("gpt-4o")) return true
@@ -102,8 +119,7 @@ class ProviderRepository @Inject constructor(
         return false
     }
 
-    private suspend fun detectToolsCapability(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
-        capabilityCacheRepository.lookup(modelId)?.let { return it.tools }
+    private fun heuristicTools(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
         val idLower = modelId.lowercase()
         val descLower = dto.description?.lowercase() ?: ""
 
@@ -124,8 +140,7 @@ class ProviderRepository @Inject constructor(
         return false
     }
 
-    private suspend fun detectReasoningCapability(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
-        capabilityCacheRepository.lookup(modelId)?.let { return it.reasoning }
+    private fun heuristicReasoning(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
         val idLower = modelId.lowercase()
         val descLower = dto.description?.lowercase() ?: ""
 
