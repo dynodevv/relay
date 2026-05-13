@@ -16,7 +16,8 @@ import javax.inject.Singleton
 class ProviderRepository @Inject constructor(
     private val providerDao: ProviderDao,
     private val modelDao: AIModelDao,
-    private val api: OpenAICompatibleApi
+    private val api: OpenAICompatibleApi,
+    private val capabilityCacheRepository: CapabilityCacheRepository
 ) {
     fun getProviders(): Flow<List<Provider>> =
         providerDao.getAll().map { list ->
@@ -67,25 +68,26 @@ class ProviderRepository @Inject constructor(
 
     suspend fun fetchModelsFromApi(provider: Provider): Result<List<AIModel>> {
         val result = api.fetchModels(provider.apiBaseUrl, provider.apiKey)
-        return result.map { response ->
-            response.data?.map { dto ->
-                val id = dto.id
-                AIModel(
-                    id = id,
-                    providerId = provider.id,
-                    displayName = dto.name ?: id,
-                    supportsImageInput = detectVisionCapability(id, dto),
-                    supportsTools = detectToolsCapability(id, dto),
-                    supportsReasoning = detectReasoningCapability(id, dto),
-                    contextLength = dto.context_length,
-                    isCustom = false
-                )
-            } ?: emptyList()
-        }
+        val response = result.getOrNull()
+            ?: return Result.failure(result.exceptionOrNull() ?: Exception("Unknown error"))
+        val models = response.data?.map { dto ->
+            val id = dto.id
+            AIModel(
+                id = id,
+                providerId = provider.id,
+                displayName = dto.name ?: id,
+                supportsImageInput = detectVisionCapability(id, dto),
+                supportsTools = detectToolsCapability(id, dto),
+                supportsReasoning = detectReasoningCapability(id, dto),
+                contextLength = dto.context_length,
+                isCustom = false
+            )
+        } ?: emptyList()
+        return Result.success(models)
     }
 
-    private fun detectVisionCapability(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
-        ModelCapabilityDatabase.lookup(modelId)?.let { return it.vision }
+    private suspend fun detectVisionCapability(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
+        capabilityCacheRepository.lookup(modelId)?.let { return it.vision }
         val idLower = modelId.lowercase()
         if (idLower.contains("vision")) return true
         val modality = dto.architecture?.modality?.lowercase()
@@ -93,15 +95,15 @@ class ProviderRepository @Inject constructor(
         return false
     }
 
-    private fun detectToolsCapability(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
-        ModelCapabilityDatabase.lookup(modelId)?.let { return it.tools }
+    private suspend fun detectToolsCapability(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
+        capabilityCacheRepository.lookup(modelId)?.let { return it.tools }
         val descLower = dto.description?.lowercase() ?: ""
         if (descLower.contains("tool") || descLower.contains("function calling") || descLower.contains("function-calling")) return true
         return false
     }
 
-    private fun detectReasoningCapability(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
-        ModelCapabilityDatabase.lookup(modelId)?.let { return it.reasoning }
+    private suspend fun detectReasoningCapability(modelId: String, dto: com.dynodevv.relay.data.remote.dto.ModelInfoDto): Boolean {
+        capabilityCacheRepository.lookup(modelId)?.let { return it.reasoning }
         val descLower = dto.description?.lowercase() ?: ""
         if (descLower.contains("reasoning") || descLower.contains("chain of thought") || descLower.contains("thinking")) return true
         return false

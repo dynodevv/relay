@@ -28,6 +28,8 @@ class SettingsRepository @Inject constructor(
         val DEFAULT_PROVIDER_ID = longPreferencesKey("default_provider_id")
         val DEFAULT_MODEL_ID = stringPreferencesKey("default_model_id")
         val GLOBAL_SYSTEM_PROMPT = stringPreferencesKey("global_system_prompt")
+        val CAPABILITY_CACHE_LAST_SYNC = longPreferencesKey("capability_cache_last_sync")
+        val CAPABILITY_CACHE_AUTO_UPDATE = booleanPreferencesKey("capability_cache_auto_update")
     }
 
     val themeMode: Flow<String> = dataStore.data.map { prefs ->
@@ -48,6 +50,14 @@ class SettingsRepository @Inject constructor(
 
     val globalSystemPrompt: Flow<String?> = dataStore.data.map { prefs ->
         prefs[GLOBAL_SYSTEM_PROMPT]
+    }
+
+    val capabilityCacheLastSync: Flow<Long> = dataStore.data.map { prefs ->
+        prefs[CAPABILITY_CACHE_LAST_SYNC] ?: 0L
+    }
+
+    val capabilityCacheAutoUpdate: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[CAPABILITY_CACHE_AUTO_UPDATE] ?: true
     }
 
     suspend fun setThemeMode(mode: String) {
@@ -83,6 +93,18 @@ class SettingsRepository @Inject constructor(
             } else {
                 prefs.remove(GLOBAL_SYSTEM_PROMPT)
             }
+        }
+    }
+
+    suspend fun setCapabilityCacheLastSync(timestamp: Long) {
+        dataStore.edit { prefs ->
+            prefs[CAPABILITY_CACHE_LAST_SYNC] = timestamp
+        }
+    }
+
+    suspend fun setCapabilityCacheAutoUpdate(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[CAPABILITY_CACHE_AUTO_UPDATE] = enabled
         }
     }
 }

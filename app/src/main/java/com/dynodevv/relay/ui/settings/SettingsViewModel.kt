@@ -1,7 +1,9 @@
 package com.dynodevv.relay.ui.settings
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dynodevv.relay.data.repository.CapabilityCacheRepository
 import com.dynodevv.relay.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -12,7 +14,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val repository: SettingsRepository
+    private val repository: SettingsRepository,
+    private val capabilityCacheRepository: CapabilityCacheRepository
 ) : ViewModel() {
 
     val themeMode = repository.themeMode
@@ -31,6 +34,15 @@ class SettingsViewModel @Inject constructor(
         .map { it ?: RelayDefaultSystemPrompt }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), RelayDefaultSystemPrompt)
 
+    val capabilityCacheAutoUpdate = repository.capabilityCacheAutoUpdate
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    private val _isSyncingCapabilities = mutableStateOf(false)
+    val isSyncingCapabilities: Boolean get() = _isSyncingCapabilities.value
+
+    private val _capabilitySyncResult = mutableStateOf<String?>(null)
+    val capabilitySyncResult: String? get() = _capabilitySyncResult.value
+
     fun setThemeMode(mode: String) {
         viewModelScope.launch {
             repository.setThemeMode(mode)
@@ -47,6 +59,29 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             repository.setGlobalSystemPrompt(prompt)
         }
+    }
+
+    fun setCapabilityCacheAutoUpdate(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setCapabilityCacheAutoUpdate(enabled)
+        }
+    }
+
+    fun syncCapabilityCache() {
+        viewModelScope.launch {
+            _isSyncingCapabilities.value = true
+            _capabilitySyncResult.value = null
+            val result = capabilityCacheRepository.fetchAndCache()
+            _isSyncingCapabilities.value = false
+            _capabilitySyncResult.value = result.fold(
+                onSuccess = { "Updated $it models" },
+                onFailure = { "Update failed: ${it.message}" }
+            )
+        }
+    }
+
+    fun clearCapabilitySyncResult() {
+        _capabilitySyncResult.value = null
     }
 }
 

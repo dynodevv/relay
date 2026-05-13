@@ -11,10 +11,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
+import com.dynodevv.relay.data.repository.CapabilityCacheRepository
 import com.dynodevv.relay.data.repository.SettingsRepository
 import com.dynodevv.relay.ui.theme.RelayTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 
@@ -24,9 +27,18 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var settingsRepository: SettingsRepository
 
+    @Inject
+    lateinit var capabilityCacheRepository: CapabilityCacheRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        lifecycleScope.launch {
+            if (capabilityCacheRepository.shouldSync()) {
+                capabilityCacheRepository.fetchAndCache()
+            }
+        }
 
         val (initialDarkTheme, initialDynamicColors) = runBlocking {
             val mode = settingsRepository.themeMode.first()

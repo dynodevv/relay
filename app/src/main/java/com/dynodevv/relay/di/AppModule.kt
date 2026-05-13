@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.dynodevv.relay.data.local.AppDatabase
 import com.dynodevv.relay.data.local.MIGRATION_3_6
 import com.dynodevv.relay.data.local.MIGRATION_6_7
+import com.dynodevv.relay.data.local.MIGRATION_7_8
 import com.dynodevv.relay.data.remote.api.OpenAICompatibleApi
 import dagger.Module
 import dagger.Provides
@@ -64,7 +65,7 @@ object AppModule {
             AppDatabase::class.java,
             "relay_database"
         )
-            .addMigrations(MIGRATION_3_6, MIGRATION_6_7)
+            .addMigrations(MIGRATION_3_6, MIGRATION_6_7, MIGRATION_7_8)
             .build()
     }
 
@@ -79,6 +80,9 @@ object AppModule {
 
     @Provides
     fun provideAiModelDao(db: AppDatabase) = db.aiModelDao()
+
+    @Provides
+    fun provideCapabilityCacheDao(db: AppDatabase) = db.capabilityCacheDao()
 
     @Provides
     @Singleton
