@@ -31,15 +31,75 @@ class CapabilityCacheRepository @Inject constructor(
         val reasoning: Boolean = false
     )
 
-    suspend fun lookup(modelId: String): Capabilities? {
-        val cached = capabilityCacheDao.getById(modelId.lowercase())
-        return cached?.let {
-            Capabilities(
+    /** In-memory cache of the DB, rebuilt after fetchAndCache(). */
+    private var memoryCache: Map<String, Capabilities>? = null
+
+    private suspend fun loadMemoryCache(): Map<String, Capabilities> {
+        memoryCache?.let { return it }
+        val all = capabilityCacheDao.getAll()
+        val map = all.associate {
+            it.modelId to Capabilities(
                 vision = it.supportsVision,
                 tools = it.supportsTools,
                 reasoning = it.supportsReasoning
             )
         }
+        memoryCache = map
+        return map
+    }
+
+    suspend fun lookup(modelId: String): Capabilities? {
+        val map = loadMemoryCache()
+        val idLower = modelId.lowercase()
+
+        // Strategy 1: exact match
+        map[idLower]?.let { return it }
+
+        // Strategy 2: strip everything before last '/' (provider prefix)
+        // e.g. "openai/gpt-4o" -> "gpt-4o"
+        //      "openrouter/anthropic/claude-3-sonnet" -> "claude-3-sonnet"
+        val lastSlash = idLower.lastIndexOf('/')
+        if (lastSlash != -1) {
+            map[idLower.substring(lastSlash + 1)]?.let { return it }
+        }
+
+        // Strategy 3: strip everything before first '.' (bedrock style)
+        // e.g. "anthropic.claude-3-sonnet-20240229-v1:0" -> "claude-3-sonnet-20240229-v1:0"
+        val firstDot = idLower.indexOf('.')
+        if (firstDot != -1) {
+            val afterDot = idLower.substring(firstDot + 1)
+            map[afterDot]?.let { return it }
+            map[afterDot.replace('.', '-')]?.let { return it }
+        }
+
+        // Strategy 4: for multi-slash paths, try each suffix segment
+        // e.g. "openrouter/openai/gpt-4o" -> "openai/gpt-4o" -> "gpt-4o"
+        val segments = idLower.split('/')
+        if (segments.size > 2) {
+            for (i in 1 until segments.size - 1) {
+                val suffix = segments.subList(i, segments.size).joinToString("/")
+                map[suffix]?.let { return it }
+            }
+        }
+
+        // Strategy 5: try stripping common provider prefixes
+        val providerPrefixes = listOf(
+            "anthropic.", "openai.", "google.", "mistralai.", "meta.",
+            "azure/", "aws/", "bedrock/", "groq/", "together_ai/",
+            "openrouter/", "ai21/", "cohere/", "xai/"
+        )
+        for (prefix in providerPrefixes) {
+            if (idLower.startsWith(prefix)) {
+                map[idLower.removePrefix(prefix)]?.let { return it }
+            }
+        }
+
+        // Strategy 6: find any LiteLLM key that ends with the base name
+        // e.g. provider returns "claude-3-sonnet", LiteLLM has "openrouter/anthropic/claude-3-sonnet"
+        val baseName = segments.lastOrNull() ?: idLower
+        map.entries.firstOrNull { it.key.endsWith(baseName) || baseName.endsWith(it.key) }?.value?.let { return it }
+
+        return null
     }
 
     suspend fun shouldSync(): Boolean {
@@ -87,6 +147,7 @@ class CapabilityCacheRepository @Inject constructor(
             capabilityCacheDao.clearAll()
             capabilityCacheDao.insertAll(entries)
             settingsRepository.setCapabilityCacheLastSync(now)
+            memoryCache = null // invalidate in-memory cache
 
             Result.success(entries.size)
         } catch (e: Exception) {

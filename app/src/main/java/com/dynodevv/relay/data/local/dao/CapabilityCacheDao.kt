@@ -19,4 +19,7 @@ interface CapabilityCacheDao {
 
     @Query("SELECT COUNT(*) FROM capability_cache")
     suspend fun getCount(): Int
+
+    @Query("SELECT * FROM capability_cache")
+    suspend fun getAll(): List<CapabilityCacheEntity>
 }
