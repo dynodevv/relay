@@ -9,12 +9,17 @@
 - **Push automatically.** After finishing changes, stage, commit, and push to `origin/main` without waiting for explicit confirmation. The user expects the repo to stay up to date.
 - Use `--no-edit` for simple fixup amends; rewrite commit messages only when the change meaningfully shifts.
 
+## Shell / File Paths
+
+**Always quote every file path** when passing it to shell commands, even if it looks space-free — it prevents word-splitting errors and costs nothing.
+
 ## Build & CI
 
 - **Do NOT build locally.** The project has no local Android SDK setup. All builds run via [GitHub Actions](.github/workflows/build.yml).
 - Push to `main` triggers the `build` job which produces Debug + Release APKs as artifacts.
 - Creating a git tag triggers a GitHub Release with the Release APK attached.
 - `./gradlew assembleDebug --no-daemon` is the CI command — don't run it locally.
+- **JDK 21** is required (`JavaVersion.VERSION_21`, `jvmTarget = "21"`).
 
 ## Tech Stack Quirks
 
@@ -25,6 +30,7 @@ Both the **root** `build.gradle.kts` AND **app** `build.gradle.kts` must apply `
 The `HttpClient` has `ContentNegotiation` installed with `kotlinx.serialization.json`. However:
 - For **model fetch** (`fetchModels`), read response as `bodyAsText()` then parse manually with `Json.decodeFromString()`. Do NOT use `response.body()` — if the server returns `text/html`, Ktor throws `NoTransformationFoundException`.
 - For **streaming chat**, we read `bodyAsChannel()` and parse SSE lines manually.
+- **Engine config:** HTTP/1.1 only (not HTTP/2) to avoid proxy buffering, and `readTimeout(0)` because SSE pauses between tokens.
 
 ### OpenRouter Headers
 OpenRouter requires these headers on every request or it may return HTML errors:
@@ -53,7 +59,7 @@ Release builds (`isMinifyEnabled = true`) will fail without comprehensive `-keep
 - **Package:** `com.dynodevv.relay`
 - **DI:** Hilt with `@HiltAndroidApp` on `RelayApp`. Use `hiltViewModel()` in Compose screens.
 - **Navigation:** Compose Navigation in `RelayAppContent.kt`. Routes are in `Routes` object.
-- **Database:** Room with 4 entities (`Conversation`, `Message`, `Provider`, `AIModel`).
+- **Database:** Room with 5 entities (`Conversation`, `Message`, `Provider`, `AIModel`, `CapabilityCache`).
 - **API layer:** `OpenAICompatibleApi` handles all HTTP. It's OpenAI-compatible, supporting OpenRouter, Groq, Gemini, Claude, etc.
 - **Streaming:** `ChatService.streamResponse()` returns `Flow<String>`. It has a **non-streaming fallback** — if no chunks are emitted, it retries with `stream = false`.
 
@@ -62,6 +68,7 @@ Release builds (`isMinifyEnabled = true`) will fail without comprehensive `-keep
 | Concern | Location |
 |---|---|
 | Entry point | `app/src/main/java/com/dynodevv/relay/MainActivity.kt` |
+| Application class | `app/src/main/java/com/dynodevv/relay/RelayApp.kt` |
 | Navigation / Routes | `app/src/main/java/com/dynodevv/relay/RelayAppContent.kt` |
 | DI Module | `app/src/main/java/com/dynodevv/relay/di/AppModule.kt` |
 | API Client | `app/src/main/java/com/dynodevv/relay/data/remote/api/OpenAICompatibleApi.kt` |
