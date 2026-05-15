@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="https://deepwiki.com/dynodevv/relay"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
+  <a href="https://github.com/dynodevv/relay/releases"><img src="https://img.shields.io/github/v/release/dynodevv/relay?include_prereleases" alt="GitHub Release"></a>
 </p>
 
 ## Features
