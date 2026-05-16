@@ -50,7 +50,7 @@ val ProviderPresets = listOf(
     Provider(name = "Anthropic", apiBaseUrl = "https://api.anthropic.com/v1", iconName = "anthropic"),
     Provider(name = "OpenRouter", apiBaseUrl = "https://openrouter.ai/api/v1", iconName = "openrouter"),
     Provider(name = "Groq", apiBaseUrl = "https://api.groq.com/openai/v1", iconName = "groq"),
-    Provider(name = "DeepSeek", apiBaseUrl = "https://api.deepseek.com/v1", iconName = "deepseek"),
+    Provider(name = "DeepSeek", apiBaseUrl = "https://api.deepseek.com", iconName = "deepseek"),
     Provider(name = "Together AI", apiBaseUrl = "https://api.together.xyz/v1", iconName = "together"),
     Provider(name = "Perplexity", apiBaseUrl = "https://api.perplexity.ai", iconName = "perplexity")
 )
