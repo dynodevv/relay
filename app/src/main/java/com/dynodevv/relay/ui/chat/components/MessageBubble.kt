@@ -159,8 +159,20 @@ fun MessageBubble(
                                 if (message.isStreaming && message.content.isEmpty()) {
                                     ThinkingDots()
                                 } else if (message.isStreaming) {
+                                    val assistantText = if (highlightQuery != null) {
+                                        buildHighlightedText(message.content, highlightQuery)
+                                    } else {
+                                        AnnotatedString(message.content)
+                                    }
                                     Text(
-                                        text = message.content,
+                                        text = assistantText,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                } else if (highlightQuery != null) {
+                                    // When highlighting, render as plain text with highlights instead of Markdown
+                                    Text(
+                                        text = buildHighlightedText(message.content, highlightQuery),
                                         style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

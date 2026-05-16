@@ -10,6 +10,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.dynodevv.relay.ui.chat.ChatScreen
 import com.dynodevv.relay.ui.chat.ChatViewModel
+import com.dynodevv.relay.ui.organization.ArchiveScreen
+import com.dynodevv.relay.ui.organization.FolderContentsScreen
+import com.dynodevv.relay.ui.organization.FoldersScreen
 import com.dynodevv.relay.ui.providers.AddProviderScreen
 import com.dynodevv.relay.ui.providers.ProvidersScreen
 import com.dynodevv.relay.ui.providers.ProvidersViewModel
@@ -26,10 +29,14 @@ object Routes {
     const val MODELS = "models/{providerId}"
     const val ADD_MODEL = "add_model/{providerId}"
     const val SETTINGS = "settings"
+    const val FOLDERS = "folders"
+    const val FOLDER = "folder/{folderId}"
+    const val ARCHIVE = "archive"
 
     fun chat(conversationId: Long = 0L) = "chat/$conversationId"
     fun models(providerId: Long) = "models/$providerId"
     fun addModel(providerId: Long) = "add_model/$providerId"
+    fun folder(folderId: Long) = "folder/$folderId"
 }
 
 @Composable
@@ -74,7 +81,9 @@ fun RelayAppContent(navController: NavHostController = rememberNavController()) 
                         popUpTo(Routes.CHAT_BASE) { inclusive = true }
                         launchSingleTop = true
                     }
-                }
+                },
+                onNavigateToFolders = { navController.navigate(Routes.FOLDERS) },
+                onNavigateToArchive = { navController.navigate(Routes.ARCHIVE) }
             )
         }
 
@@ -123,6 +132,37 @@ fun RelayAppContent(navController: NavHostController = rememberNavController()) 
             SettingsScreen(
                 onBack = { navController.popBackStack() },
                 onNavigateToProviders = { navController.navigate(Routes.PROVIDERS) }
+            )
+        }
+
+        composable(Routes.FOLDERS) {
+            FoldersScreen(
+                onBack = { navController.popBackStack() },
+                onFolderClick = { folderId ->
+                    navController.navigate(Routes.folder(folderId))
+                }
+            )
+        }
+
+        composable(Routes.FOLDER) { backStackEntry ->
+            val folderId = backStackEntry.arguments?.getString("folderId")?.toLongOrNull() ?: 0L
+            FolderContentsScreen(
+                folderId = folderId,
+                onBack = { navController.popBackStack() },
+                onConversationClick = { conversationId ->
+                    navController.navigate(Routes.chat(conversationId)) {
+                        popUpTo(Routes.FOLDERS) { inclusive = false }
+                    }
+                }
+            )
+        }
+
+        composable(Routes.ARCHIVE) {
+            ArchiveScreen(
+                onBack = { navController.popBackStack() },
+                onConversationClick = { conversationId ->
+                    navController.navigate(Routes.chat(conversationId))
+                }
             )
         }
     }

@@ -8,7 +8,6 @@ import androidx.lifecycle.viewModelScope
 import com.dynodevv.relay.data.repository.BackupRepository
 import com.dynodevv.relay.data.repository.ChatRepository
 import com.dynodevv.relay.data.repository.ChatService
-import com.dynodevv.relay.data.repository.FolderRepository
 import com.dynodevv.relay.data.repository.MessageRepository
 import com.dynodevv.relay.data.repository.ProviderRepository
 import com.dynodevv.relay.data.repository.SettingsRepository
@@ -16,8 +15,6 @@ import com.dynodevv.relay.data.repository.TagRepository
 import com.dynodevv.relay.data.repository.TemplateRepository
 import com.dynodevv.relay.ui.settings.RelayDefaultSystemPrompt
 import com.dynodevv.relay.domain.model.AIModel
-import com.dynodevv.relay.domain.model.Conversation
-import com.dynodevv.relay.domain.model.Folder
 import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.MessageRole
 import com.dynodevv.relay.domain.model.Provider
@@ -39,7 +36,7 @@ data class ChatUiState(
     val currentConversationId: Long = 0L,
     val conversationTitle: String = "New Chat",
     val messages: List<Message> = emptyList(),
-    val conversations: List<Conversation> = emptyList(),
+    val conversations: List<com.dynodevv.relay.domain.model.Conversation> = emptyList(),
     val inputText: String = "",
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -52,15 +49,10 @@ data class ChatUiState(
     val hasProviders: Boolean = true,
     val navigateToConversationId: Long? = null,
     // Phase 3: Organization
-    val folders: List<Folder> = emptyList(),
     val tags: List<Tag> = emptyList(),
     val templates: List<Template> = emptyList(),
-    val currentFolderId: Long? = null,
-    val showArchived: Boolean = false,
     val searchQuery: String = "",
     val isSearchActive: Boolean = false,
-    val isBulkSelectionMode: Boolean = false,
-    val selectedConversationIds: Set<Long> = emptySet(),
     val messageSearchQuery: String = "",
     val messageSearchResults: List<Message> = emptyList(),
     val isMessageSearchActive: Boolean = false,
@@ -75,7 +67,6 @@ class ChatViewModel @Inject constructor(
     private val providerRepository: ProviderRepository,
     private val chatService: ChatService,
     private val settingsRepository: SettingsRepository,
-    private val folderRepository: FolderRepository,
     private val tagRepository: TagRepository,
     private val templateRepository: TemplateRepository,
     private val backupRepository: BackupRepository
@@ -95,11 +86,6 @@ class ChatViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            folderRepository.getFolders().collectLatest { folders ->
-                _uiState.update { it.copy(folders = folders) }
-            }
-        }
-        viewModelScope.launch {
             tagRepository.getTags().collectLatest { tags ->
                 _uiState.update { it.copy(tags = tags) }
             }
@@ -111,7 +97,7 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun startConversationsCollection(flowProvider: () -> kotlinx.coroutines.flow.Flow<List<Conversation>>) {
+    private fun startConversationsCollection(flowProvider: () -> kotlinx.coroutines.flow.Flow<List<com.dynodevv.relay.domain.model.Conversation>>) {
         conversationsCollectionJob?.cancel()
         conversationsCollectionJob = viewModelScope.launch {
             flowProvider().collectLatest { conversations ->
@@ -287,7 +273,7 @@ class ChatViewModel @Inject constructor(
                 )
                 chatRepository.updateTimestamp(conversationId)
 
-                val userMessage = Message(
+                val userMessage = com.dynodevv.relay.domain.model.Message(
                     id = userMessageId,
                     conversationId = conversationId,
                     role = MessageRole.User,
@@ -361,7 +347,7 @@ class ChatViewModel @Inject constructor(
             content = "",
             isStreaming = true
         )
-        var assistantMessage = Message(
+        var assistantMessage = com.dynodevv.relay.domain.model.Message(
             id = assistantMessageId,
             conversationId = conversationId,
             role = MessageRole.Assistant,
@@ -543,52 +529,65 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun archiveConversation(id: Long) {
+        viewModelScope.launch {
+            chatRepository.archiveConversation(id)
+            if (_uiState.value.currentConversationId == id) {
+                startNewChat()
+            }
+        }
+    }
+
     fun clearNavigation() {
         _uiState.update { it.copy(navigateToConversationId = null) }
     }
 
-    // --- Phase 3: Folders ---
+    // --- Phase 3: Search ---
 
-    fun selectFolder(folderId: Long?) {
-        _uiState.update { it.copy(currentFolderId = folderId, showArchived = false, searchQuery = "", isSearchActive = false) }
-        if (folderId == null) {
+    fun setSearchQuery(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+        if (query.isBlank()) {
             startConversationsCollection { chatRepository.getConversations() }
+            _uiState.update { it.copy(isSearchActive = false) }
+            return
+        }
+        startConversationsCollection { chatRepository.searchConversations(query) }
+        _uiState.update { it.copy(isSearchActive = true) }
+    }
+
+    fun clearSearch() {
+        _uiState.update { it.copy(searchQuery = "", isSearchActive = false) }
+        startConversationsCollection { chatRepository.getConversations() }
+    }
+
+    // --- Phase 3: Message Search ---
+
+    fun toggleMessageSearch() {
+        val currentlyActive = _uiState.value.isMessageSearchActive
+        if (currentlyActive) {
+            clearMessageSearch()
         } else {
-            startConversationsCollection { chatRepository.getConversationsByFolder(folderId) }
+            _uiState.update { it.copy(isMessageSearchActive = true) }
         }
     }
 
-    fun showArchived(show: Boolean) {
-        _uiState.update { it.copy(showArchived = show, currentFolderId = null, searchQuery = "", isSearchActive = false) }
-        if (show) {
-            startConversationsCollection { chatRepository.getArchivedConversations() }
-        } else {
-            startConversationsCollection { chatRepository.getConversations() }
+    fun setMessageSearchQuery(query: String) {
+        _uiState.update { it.copy(messageSearchQuery = query) }
+        if (query.isBlank()) {
+            _uiState.update { it.copy(messageSearchResults = emptyList()) }
+            return
         }
-    }
-
-    fun createFolder(name: String) {
+        val conversationId = _uiState.value.currentConversationId
+        if (conversationId == 0L) return
         viewModelScope.launch {
-            folderRepository.createFolder(name)
+            messageRepository.searchMessages(conversationId, query).collectLatest { messages ->
+                _uiState.update { it.copy(messageSearchResults = messages, isMessageSearchActive = true) }
+            }
         }
     }
 
-    fun renameFolder(id: Long, name: String) {
-        viewModelScope.launch {
-            folderRepository.updateFolder(id, name)
-        }
-    }
-
-    fun deleteFolder(id: Long) {
-        viewModelScope.launch {
-            folderRepository.deleteFolder(id)
-        }
-    }
-
-    fun moveConversationToFolder(conversationId: Long, folderId: Long?) {
-        viewModelScope.launch {
-            chatRepository.moveToFolder(conversationId, folderId)
-        }
+    fun clearMessageSearch() {
+        _uiState.update { it.copy(messageSearchQuery = "", messageSearchResults = emptyList(), isMessageSearchActive = false) }
     }
 
     // --- Phase 3: Tags ---
@@ -615,139 +614,6 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             tagRepository.removeTagFromConversation(conversationId, tagId)
         }
-    }
-
-    // --- Phase 3: Archive ---
-
-    fun archiveConversation(id: Long) {
-        viewModelScope.launch {
-            chatRepository.archiveConversation(id)
-            if (_uiState.value.currentConversationId == id) {
-                startNewChat()
-            }
-        }
-    }
-
-    fun unarchiveConversation(id: Long) {
-        viewModelScope.launch {
-            chatRepository.unarchiveConversation(id)
-        }
-    }
-
-    // --- Phase 3: Bulk Operations ---
-
-    fun toggleBulkSelectionMode() {
-        _uiState.update {
-            it.copy(
-                isBulkSelectionMode = !it.isBulkSelectionMode,
-                selectedConversationIds = emptySet()
-            )
-        }
-    }
-
-    fun toggleConversationSelection(id: Long) {
-        _uiState.update { state ->
-            val newSet = if (state.selectedConversationIds.contains(id)) {
-                state.selectedConversationIds - id
-            } else {
-                state.selectedConversationIds + id
-            }
-            state.copy(selectedConversationIds = newSet)
-        }
-    }
-
-    fun selectAllConversations() {
-        _uiState.update { state ->
-            state.copy(selectedConversationIds = state.conversations.map { it.id }.toSet())
-        }
-    }
-
-    fun clearSelection() {
-        _uiState.update { it.copy(selectedConversationIds = emptySet()) }
-    }
-
-    fun archiveSelectedConversations() {
-        viewModelScope.launch {
-            val ids = _uiState.value.selectedConversationIds.toList()
-            if (ids.isNotEmpty()) {
-                chatRepository.archiveConversations(ids)
-                _uiState.update {
-                    it.copy(
-                        selectedConversationIds = emptySet(),
-                        isBulkSelectionMode = false
-                    )
-                }
-            }
-        }
-    }
-
-    fun deleteSelectedConversations() {
-        viewModelScope.launch {
-            val ids = _uiState.value.selectedConversationIds.toList()
-            if (ids.isNotEmpty()) {
-                chatRepository.deleteConversations(ids)
-                _uiState.update {
-                    it.copy(
-                        selectedConversationIds = emptySet(),
-                        isBulkSelectionMode = false
-                    )
-                }
-            }
-        }
-    }
-
-    fun moveSelectedToFolder(folderId: Long?) {
-        viewModelScope.launch {
-            val ids = _uiState.value.selectedConversationIds.toList()
-            if (ids.isNotEmpty()) {
-                chatRepository.moveToFolder(ids, folderId)
-                _uiState.update {
-                    it.copy(
-                        selectedConversationIds = emptySet(),
-                        isBulkSelectionMode = false
-                    )
-                }
-            }
-        }
-    }
-
-    // --- Phase 3: Search ---
-
-    fun setSearchQuery(query: String) {
-        _uiState.update { it.copy(searchQuery = query) }
-        if (query.isBlank()) {
-            startConversationsCollection { chatRepository.getConversations() }
-            _uiState.update { it.copy(isSearchActive = false) }
-            return
-        }
-        startConversationsCollection { chatRepository.searchConversations(query) }
-        _uiState.update { it.copy(isSearchActive = true) }
-    }
-
-    fun clearSearch() {
-        _uiState.update { it.copy(searchQuery = "", isSearchActive = false) }
-        startConversationsCollection { chatRepository.getConversations() }
-    }
-
-    // --- Phase 3: Message Search ---
-
-    fun setMessageSearchQuery(query: String) {
-        _uiState.update { it.copy(messageSearchQuery = query) }
-        if (query.isBlank()) {
-            _uiState.update { it.copy(messageSearchResults = emptyList(), isMessageSearchActive = false) }
-            return
-        }
-        val conversationId = _uiState.value.currentConversationId
-        if (conversationId == 0L) return
-        viewModelScope.launch {
-            messageRepository.searchMessages(conversationId, query).collectLatest { messages ->
-                _uiState.update { it.copy(messageSearchResults = messages, isMessageSearchActive = true) }
-            }
-        }
-    }
-
-    fun clearMessageSearch() {
-        _uiState.update { it.copy(messageSearchQuery = "", messageSearchResults = emptyList(), isMessageSearchActive = false) }
     }
 
     // --- Phase 3: Templates ---

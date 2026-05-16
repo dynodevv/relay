@@ -71,7 +71,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dynodevv.relay.R
-import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.MessageRole
 import com.dynodevv.relay.ui.chat.components.ChatNavigationDrawer
 import com.dynodevv.relay.ui.chat.components.MessageBubble
@@ -84,7 +83,9 @@ fun ChatScreen(
     conversationId: Long,
     viewModel: ChatViewModel,
     onNavigateToSettings: () -> Unit,
-    onNavigateToChat: (Long) -> Unit
+    onNavigateToChat: (Long) -> Unit,
+    onNavigateToFolders: () -> Unit = {},
+    onNavigateToArchive: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -102,11 +103,10 @@ fun ChatScreen(
         }
     }
 
-    // Confirmation dialog states
+    // Dialog states
     var messageToDelete by remember { mutableStateOf<Long?>(null) }
     var showEditConfirm by remember { mutableStateOf(false) }
     var showModelMenu by remember { mutableStateOf(false) }
-    var showMessageSearch by remember { mutableStateOf(false) }
     var showTemplates by remember { mutableStateOf(false) }
     var showExportResult by remember { mutableStateOf<String?>(null) }
     var showSaveTemplateDialog by remember { mutableStateOf(false) }
@@ -143,15 +143,10 @@ fun ChatScreen(
         drawerContent = {
             ChatNavigationDrawer(
                 conversations = uiState.conversations,
-                folders = uiState.folders,
                 tags = uiState.tags,
                 currentConversationId = uiState.currentConversationId,
-                currentFolderId = uiState.currentFolderId,
-                showArchived = uiState.showArchived,
                 searchQuery = uiState.searchQuery,
                 isSearchActive = uiState.isSearchActive,
-                isBulkSelectionMode = uiState.isBulkSelectionMode,
-                selectedConversationIds = uiState.selectedConversationIds,
                 onConversationClick = { id ->
                     scope.launch { drawerState.close() }
                     onNavigateToChat(id)
@@ -163,25 +158,20 @@ fun ChatScreen(
                 onRenameConversation = { id, title -> viewModel.renameConversation(id, title) },
                 onDeleteConversation = { id -> viewModel.deleteConversation(id) },
                 onArchiveConversation = { id -> viewModel.archiveConversation(id) },
-                onUnarchiveConversation = { id -> viewModel.unarchiveConversation(id) },
                 onNavigateToSettings = {
                     scope.launch { drawerState.close() }
                     onNavigateToSettings()
                 },
-                onSelectFolder = { viewModel.selectFolder(it) },
-                onShowArchived = { viewModel.showArchived(it) },
+                onNavigateToFolders = {
+                    scope.launch { drawerState.close() }
+                    onNavigateToFolders()
+                },
+                onNavigateToArchive = {
+                    scope.launch { drawerState.close() }
+                    onNavigateToArchive()
+                },
                 onSearchQueryChange = { viewModel.setSearchQuery(it) },
                 onClearSearch = { viewModel.clearSearch() },
-                onToggleBulkSelectionMode = { viewModel.toggleBulkSelectionMode() },
-                onToggleConversationSelection = { viewModel.toggleConversationSelection(it) },
-                onSelectAll = { viewModel.selectAllConversations() },
-                onClearSelection = { viewModel.clearSelection() },
-                onArchiveSelected = { viewModel.archiveSelectedConversations() },
-                onDeleteSelected = { viewModel.deleteSelectedConversations() },
-                onMoveToFolder = { viewModel.moveSelectedToFolder(it) },
-                onCreateFolder = { viewModel.createFolder(it) },
-                onRenameFolder = { id, name -> viewModel.renameFolder(id, name) },
-                onDeleteFolder = { viewModel.deleteFolder(it) },
                 onAddTagToConversation = { convId, tagId -> viewModel.addTagToConversation(convId, tagId) },
                 onRemoveTagFromConversation = { convId, tagId -> viewModel.removeTagFromConversation(convId, tagId) },
                 onCreateTag = { name, color -> viewModel.createTag(name, color) },
@@ -194,84 +184,123 @@ fun ChatScreen(
         Scaffold(
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
             topBar = {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text(
-                                text = uiState.conversationTitle,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            if (uiState.availableModels.isNotEmpty()) {
-                                Box {
-                                    TextButton(
-                                        onClick = { showModelMenu = true },
-                                        contentPadding = PaddingValues(0.dp),
-                                        modifier = Modifier.height(20.dp)
-                                    ) {
-                                        Text(
-                                            text = uiState.currentModel?.displayName ?: uiState.currentModelId,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowDropDown,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                    DropdownMenu(
-                                        expanded = showModelMenu,
-                                        onDismissRequest = { showModelMenu = false }
-                                    ) {
-                                        uiState.availableModels.forEach { model ->
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        text = model.displayName,
-                                                        color = if (model.id == uiState.currentModelId)
-                                                            MaterialTheme.colorScheme.primary
-                                                        else
-                                                            MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                },
-                                                onClick = {
-                                                    viewModel.switchModel(model.id)
-                                                    showModelMenu = false
-                                                }
+                Column {
+                    TopAppBar(
+                        title = {
+                            Column {
+                                Text(
+                                    text = uiState.conversationTitle,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (uiState.availableModels.isNotEmpty()) {
+                                    Box {
+                                        TextButton(
+                                            onClick = { showModelMenu = true },
+                                            contentPadding = PaddingValues(0.dp),
+                                            modifier = Modifier.height(20.dp)
+                                        ) {
+                                            Text(
+                                                text = uiState.currentModel?.displayName ?: uiState.currentModelId,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary
                                             )
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowDropDown,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = showModelMenu,
+                                            onDismissRequest = { showModelMenu = false }
+                                        ) {
+                                            uiState.availableModels.forEach { model ->
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            text = model.displayName,
+                                                            color = if (model.id == uiState.currentModelId)
+                                                                MaterialTheme.colorScheme.primary
+                                                            else
+                                                                MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        viewModel.switchModel(model.id)
+                                                        showModelMenu = false
+                                                    }
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Open menu")
-                        }
-                    },
-                    actions = {
-                        if (uiState.currentConversationId != 0L) {
-                            IconButton(onClick = { showMessageSearch = true }) {
-                                Icon(Icons.Default.Search, contentDescription = "Search messages")
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Default.Menu, contentDescription = "Open menu")
+                            }
+                        },
+                        actions = {
+                            if (uiState.currentConversationId != 0L) {
+                                IconButton(onClick = { viewModel.toggleMessageSearch() }) {
+                                    Icon(
+                                        if (uiState.isMessageSearchActive) Icons.Default.Delete else Icons.Default.Search,
+                                        contentDescription = if (uiState.isMessageSearchActive) "Close search" else "Search messages"
+                                    )
+                                }
+                            }
+                            IconButton(onClick = { viewModel.startNewChat() }) {
+                                Icon(Icons.Default.Add, contentDescription = "New chat")
+                            }
+                        },
+                        scrollBehavior = scrollBehavior,
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
+                    )
+
+                    // Inline message search bar
+                    if (uiState.isMessageSearchActive || uiState.messageSearchQuery.isNotBlank()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = uiState.messageSearchQuery,
+                                onValueChange = { viewModel.setMessageSearchQuery(it) },
+                                placeholder = { Text("Search in conversation...") },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.large,
+                                modifier = Modifier.weight(1f),
+                                trailingIcon = {
+                                    if (uiState.messageSearchQuery.isNotBlank()) {
+                                        IconButton(onClick = { viewModel.setMessageSearchQuery("") }) {
+                                            Text("\u2715", style = MaterialTheme.typography.bodyMedium)
+                                        }
+                                    }
+                                }
+                            )
+                            if (uiState.isMessageSearchActive) {
+                                Text(
+                                    "${uiState.messageSearchResults.size}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
-                        IconButton(onClick = { viewModel.startNewChat() }) {
-                            Icon(Icons.Default.Add, contentDescription = "New chat")
-                        }
-                    },
-                    scrollBehavior = scrollBehavior,
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                )
+                    }
+                }
             },
             bottomBar = {
                 Column {
                     // Template quick-access bar
-                    if (uiState.templates.isNotEmpty()) {
+                    if (uiState.templates.isNotEmpty() && !uiState.isMessageSearchActive) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -385,6 +414,7 @@ fun ChatScreen(
                             modifier = Modifier.size(120.dp)
                         )
                     } else {
+                        val displayMessages = if (uiState.isMessageSearchActive) uiState.messageSearchResults else uiState.messages
                         LazyColumn(
                             state = listState,
                             modifier = Modifier.fillMaxSize(),
@@ -392,7 +422,7 @@ fun ChatScreen(
                             reverseLayout = true
                         ) {
                             items(
-                                items = if (uiState.isMessageSearchActive) uiState.messageSearchResults else uiState.messages,
+                                items = displayMessages.reversed(),
                                 key = { it.id }
                             ) { message ->
                                 val isSearchResult = uiState.isMessageSearchActive &&
@@ -469,50 +499,6 @@ fun ChatScreen(
             dismissButton = {
                 TextButton(onClick = { showEditConfirm = false }) {
                     Text("Cancel")
-                }
-            }
-        )
-    }
-
-    // Message search dialog
-    if (showMessageSearch) {
-        AlertDialog(
-            onDismissRequest = {
-                showMessageSearch = false
-                viewModel.clearMessageSearch()
-            },
-            title = { Text("Search Messages") },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = uiState.messageSearchQuery,
-                        onValueChange = { viewModel.setMessageSearchQuery(it) },
-                        placeholder = { Text("Search in this conversation...") },
-                        singleLine = true,
-                        shape = MaterialTheme.shapes.large,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (uiState.isMessageSearchActive) {
-                        Text(
-                            "${uiState.messageSearchResults.size} results",
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    showMessageSearch = false
-                }) {
-                    Text("Close")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    viewModel.clearMessageSearch()
-                }) {
-                    Text("Clear")
                 }
             }
         )
