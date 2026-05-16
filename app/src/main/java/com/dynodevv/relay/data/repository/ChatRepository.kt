@@ -38,13 +38,14 @@ class ChatRepository @Inject constructor(
     suspend fun getConversation(id: Long): Conversation? =
         conversationDao.getById(id)?.toDomainWithTags()
 
-    suspend fun createConversation(providerId: Long, modelId: String, systemPrompt: String? = null): Long {
+    suspend fun createConversation(providerId: Long, modelId: String, systemPrompt: String? = null, folderId: Long? = null): Long {
         return conversationDao.insert(
             ConversationEntity(
                 title = "New Chat",
                 providerId = providerId,
                 modelId = modelId,
-                systemPrompt = systemPrompt
+                systemPrompt = systemPrompt,
+                folderId = folderId
             )
         )
     }

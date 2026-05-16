@@ -4,12 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dynodevv.relay.data.repository.ChatRepository
 import com.dynodevv.relay.data.repository.FolderRepository
+import com.dynodevv.relay.data.repository.ProviderRepository
+import com.dynodevv.relay.data.repository.SettingsRepository
 import com.dynodevv.relay.domain.model.Conversation
 import com.dynodevv.relay.domain.model.Folder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -26,7 +29,9 @@ data class OrganizationUiState(
 @HiltViewModel
 class OrganizationViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
-    private val folderRepository: FolderRepository
+    private val folderRepository: FolderRepository,
+    private val providerRepository: ProviderRepository,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OrganizationUiState())
@@ -132,5 +137,35 @@ class OrganizationViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    suspend fun createConversationInFolder(folderId: Long): Long? {
+        val providers = providerRepository.getProviders().first()
+        val defaultProviderId = settingsRepository.defaultProviderId.first()
+        val defaultModelId = settingsRepository.defaultModelId.first()
+
+        val provider = if (defaultProviderId != null) {
+            providers.find { it.id == defaultProviderId } ?: providers.firstOrNull()
+        } else {
+            providers.firstOrNull()
+        }
+
+        val models = provider?.let { p ->
+            providerRepository.getModels(p.id).first()
+        } ?: emptyList()
+
+        val model = if (defaultModelId != null && provider != null) {
+            models.find { it.id == defaultModelId }
+        } else {
+            models.firstOrNull()
+        }
+
+        return if (provider != null && model != null) {
+            chatRepository.createConversation(
+                providerId = provider.id,
+                modelId = model.id,
+                folderId = folderId
+            )
+        } else null
     }
 }

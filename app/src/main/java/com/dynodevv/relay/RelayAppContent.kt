@@ -47,25 +47,25 @@ fun RelayAppContent(navController: NavHostController = rememberNavController()) 
         enterTransition = {
             slideIntoContainer(
                 AnimatedContentTransitionScope.SlideDirection.Left,
-                tween(350)
+                tween(200)
             )
         },
         exitTransition = {
             slideOutOfContainer(
                 AnimatedContentTransitionScope.SlideDirection.Left,
-                tween(350)
+                tween(200)
             )
         },
         popEnterTransition = {
             slideIntoContainer(
                 AnimatedContentTransitionScope.SlideDirection.Right,
-                tween(350)
+                tween(200)
             )
         },
         popExitTransition = {
             slideOutOfContainer(
                 AnimatedContentTransitionScope.SlideDirection.Right,
-                tween(350)
+                tween(200)
             )
         }
     ) {

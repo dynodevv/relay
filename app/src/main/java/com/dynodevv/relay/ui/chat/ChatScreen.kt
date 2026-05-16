@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
@@ -247,7 +248,7 @@ fun ChatScreen(
                             if (uiState.currentConversationId != 0L) {
                                 IconButton(onClick = { viewModel.toggleMessageSearch() }) {
                                     Icon(
-                                        if (uiState.isMessageSearchActive) Icons.Default.Delete else Icons.Default.Search,
+                                        if (uiState.isMessageSearchActive) Icons.Default.Close else Icons.Default.Search,
                                         contentDescription = if (uiState.isMessageSearchActive) "Close search" else "Search messages"
                                     )
                                 }
@@ -263,7 +264,7 @@ fun ChatScreen(
                     )
 
                     // Inline message search bar
-                    if (uiState.isMessageSearchActive || uiState.messageSearchQuery.isNotBlank()) {
+                    if (uiState.isMessageSearchActive) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()

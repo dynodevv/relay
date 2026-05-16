@@ -68,10 +68,10 @@ interface ConversationDao {
     suspend fun moveToFolder(ids: List<Long>, folderId: Long?)
 
     @Query("""
-        SELECT c.* FROM conversations c
-        INNER JOIN messages m ON c.id = m.conversationId
-        WHERE c.isArchived = 0 AND m.content LIKE '%' || :query || '%'
-        GROUP BY c.id
+        SELECT DISTINCT c.* FROM conversations c
+        LEFT JOIN messages m ON c.id = m.conversationId
+        WHERE c.isArchived = 0 
+        AND (c.title LIKE '%' || :query || '%' OR m.content LIKE '%' || :query || '%')
         ORDER BY c.updatedAt DESC
     """)
     fun searchConversations(query: String): Flow<List<ConversationEntity>>
