@@ -10,6 +10,7 @@ import com.dynodevv.relay.data.repository.ChatService
 import com.dynodevv.relay.data.repository.MessageRepository
 import com.dynodevv.relay.data.repository.ProviderRepository
 import com.dynodevv.relay.data.repository.SettingsRepository
+import com.dynodevv.relay.ui.settings.RelayDefaultSystemPrompt
 import com.dynodevv.relay.domain.model.AIModel
 import com.dynodevv.relay.domain.model.Conversation
 import com.dynodevv.relay.domain.model.Message
@@ -325,7 +326,7 @@ class ChatViewModel @Inject constructor(
                 } else msg
             }
 
-        val systemPrompt = settingsRepository.globalSystemPrompt.first()
+        val systemPrompt = settingsRepository.globalSystemPrompt.first() ?: RelayDefaultSystemPrompt
         var accumulated = ""
         val currentModel = _uiState.value.currentModel
         chatService.streamResponse(
