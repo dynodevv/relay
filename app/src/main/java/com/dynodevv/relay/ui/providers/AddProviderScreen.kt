@@ -52,7 +52,7 @@ val ProviderPresets = listOf(
     Provider(name = "Groq", apiBaseUrl = "https://api.groq.com/openai/v1", iconName = "groq"),
     Provider(name = "DeepSeek", apiBaseUrl = "https://api.deepseek.com/v1", iconName = "deepseek"),
     Provider(name = "Together AI", apiBaseUrl = "https://api.together.xyz/v1", iconName = "together"),
-    Provider(name = "Perplexity", apiBaseUrl = "https://api.perplexity.ai/v1", iconName = "perplexity")
+    Provider(name = "Perplexity", apiBaseUrl = "https://api.perplexity.ai", iconName = "perplexity")
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
