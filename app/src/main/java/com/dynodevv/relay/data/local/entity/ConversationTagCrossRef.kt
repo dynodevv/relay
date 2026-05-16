@@ -3,30 +3,29 @@ package com.dynodevv.relay.data.local.entity
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
-import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 
 @Serializable
 @Entity(
-    tableName = "messages",
+    tableName = "conversation_tags",
+    primaryKeys = ["conversationId", "tagId"],
     foreignKeys = [
         ForeignKey(
             entity = ConversationEntity::class,
             parentColumns = ["id"],
             childColumns = ["conversationId"],
             onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = TagEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["tagId"],
+            onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("conversationId")]
+    indices = [Index("tagId")]
 )
-data class MessageEntity(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
+data class ConversationTagCrossRef(
     val conversationId: Long,
-    val role: String, // "user" | "assistant" | "system"
-    val content: String,
-    val imageUris: String = "",
-    val createdAt: Long = System.currentTimeMillis(),
-    val isError: Boolean = false,
-    val isStreaming: Boolean = false
+    val tagId: Long
 )

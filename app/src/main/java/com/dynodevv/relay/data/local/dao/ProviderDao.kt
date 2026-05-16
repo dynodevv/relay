@@ -14,6 +14,9 @@ interface ProviderDao {
     @Query("SELECT * FROM providers ORDER BY createdAt ASC")
     fun getAll(): Flow<List<ProviderEntity>>
 
+    @Query("SELECT * FROM providers")
+    suspend fun getAllOnce(): List<ProviderEntity>
+
     @Query("SELECT * FROM providers WHERE id = :id")
     suspend fun getById(id: Long): ProviderEntity?
 

@@ -74,3 +74,7 @@
 # Reorderable
 -keep class sh.calvin.reorderable.** { *; }
 -dontwarn sh.calvin.reorderable.**
+
+# Relay backup/export models
+-keep class com.dynodevv.relay.data.repository.RelayBackup { *; }
+-keepclassmembers class com.dynodevv.relay.data.repository.RelayBackup { *; }

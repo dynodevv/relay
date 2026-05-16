@@ -3,6 +3,8 @@ package com.dynodevv.relay.ui.settings
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.net.Uri
+import com.dynodevv.relay.data.repository.BackupRepository
 import com.dynodevv.relay.data.repository.CapabilityCacheRepository
 import com.dynodevv.relay.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -15,7 +17,8 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
-    private val capabilityCacheRepository: CapabilityCacheRepository
+    private val capabilityCacheRepository: CapabilityCacheRepository,
+    private val backupRepository: BackupRepository
 ) : ViewModel() {
 
     val themeMode = repository.themeMode
@@ -82,6 +85,35 @@ class SettingsViewModel @Inject constructor(
 
     fun clearCapabilitySyncResult() {
         _capabilitySyncResult.value = null
+    }
+
+    // Backup / Export
+    private val _backupResult = mutableStateOf<String?>(null)
+    val backupResult: String? get() = _backupResult.value
+
+    private val _isBackingUp = mutableStateOf(false)
+    val isBackingUp: Boolean get() = _isBackingUp.value
+
+    fun exportAllData(uri: Uri) {
+        viewModelScope.launch {
+            _isBackingUp.value = true
+            val success = backupRepository.exportAllData(uri)
+            _isBackingUp.value = false
+            _backupResult.value = if (success) "Backup saved successfully" else "Backup failed"
+        }
+    }
+
+    fun importAllData(uri: Uri) {
+        viewModelScope.launch {
+            _isBackingUp.value = true
+            val success = backupRepository.importAllData(uri)
+            _isBackingUp.value = false
+            _backupResult.value = if (success) "Data restored successfully" else "Restore failed"
+        }
+    }
+
+    fun clearBackupResult() {
+        _backupResult.value = null
     }
 }
 

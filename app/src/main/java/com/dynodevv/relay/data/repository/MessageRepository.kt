@@ -53,6 +53,11 @@ class MessageRepository @Inject constructor(
         messageDao.deleteByConversation(conversationId)
     }
 
+    fun searchMessages(conversationId: Long, query: String): Flow<List<Message>> =
+        messageDao.searchMessages(conversationId, query).map { list ->
+            list.map { it.toDomain() }
+        }
+
     private fun MessageEntity.toDomain() = Message(
         id = id,
         conversationId = conversationId,

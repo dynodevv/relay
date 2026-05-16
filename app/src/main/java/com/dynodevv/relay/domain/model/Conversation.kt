@@ -7,5 +7,8 @@ data class Conversation(
     val modelId: String,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    val systemPrompt: String? = null
+    val systemPrompt: String? = null,
+    val isArchived: Boolean = false,
+    val folderId: Long? = null,
+    val tags: List<Tag> = emptyList()
 )

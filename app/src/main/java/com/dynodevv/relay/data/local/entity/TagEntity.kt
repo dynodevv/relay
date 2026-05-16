@@ -5,15 +5,11 @@ import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 
 @Serializable
-@Entity(tableName = "providers")
-data class ProviderEntity(
+@Entity(tableName = "tags")
+data class TagEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val name: String,
-    val apiBaseUrl: String,
-    val apiPath: String = "/chat/completions",
-    val apiKey: String? = null,
-    val isBuiltin: Boolean = false,
-    val iconName: String? = null,
+    val colorHex: String = "#FF6B6B",
     val createdAt: Long = System.currentTimeMillis()
 )

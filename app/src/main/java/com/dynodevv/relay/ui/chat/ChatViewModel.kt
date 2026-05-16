@@ -5,17 +5,24 @@ import android.net.Uri
 import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dynodevv.relay.data.repository.BackupRepository
 import com.dynodevv.relay.data.repository.ChatRepository
 import com.dynodevv.relay.data.repository.ChatService
+import com.dynodevv.relay.data.repository.FolderRepository
 import com.dynodevv.relay.data.repository.MessageRepository
 import com.dynodevv.relay.data.repository.ProviderRepository
 import com.dynodevv.relay.data.repository.SettingsRepository
+import com.dynodevv.relay.data.repository.TagRepository
+import com.dynodevv.relay.data.repository.TemplateRepository
 import com.dynodevv.relay.ui.settings.RelayDefaultSystemPrompt
 import com.dynodevv.relay.domain.model.AIModel
 import com.dynodevv.relay.domain.model.Conversation
+import com.dynodevv.relay.domain.model.Folder
 import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.MessageRole
 import com.dynodevv.relay.domain.model.Provider
+import com.dynodevv.relay.domain.model.Tag
+import com.dynodevv.relay.domain.model.Template
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
@@ -43,7 +50,21 @@ data class ChatUiState(
     val attachedImageUris: List<String> = emptyList(),
     val editingMessageId: Long? = null,
     val hasProviders: Boolean = true,
-    val navigateToConversationId: Long? = null
+    val navigateToConversationId: Long? = null,
+    // Phase 3: Organization
+    val folders: List<Folder> = emptyList(),
+    val tags: List<Tag> = emptyList(),
+    val templates: List<Template> = emptyList(),
+    val currentFolderId: Long? = null,
+    val showArchived: Boolean = false,
+    val searchQuery: String = "",
+    val isSearchActive: Boolean = false,
+    val isBulkSelectionMode: Boolean = false,
+    val selectedConversationIds: Set<Long> = emptySet(),
+    val messageSearchQuery: String = "",
+    val messageSearchResults: List<Message> = emptyList(),
+    val isMessageSearchActive: Boolean = false,
+    val exportResult: String? = null
 )
 
 @HiltViewModel
@@ -53,23 +74,48 @@ class ChatViewModel @Inject constructor(
     private val messageRepository: MessageRepository,
     private val providerRepository: ProviderRepository,
     private val chatService: ChatService,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val folderRepository: FolderRepository,
+    private val tagRepository: TagRepository,
+    private val templateRepository: TemplateRepository,
+    private val backupRepository: BackupRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState
 
     private var currentStreamingJob: Job? = null
+    private var conversationsCollectionJob: Job? = null
 
     init {
-        viewModelScope.launch {
-            chatRepository.getConversations().collectLatest { conversations ->
-                _uiState.update { it.copy(conversations = conversations) }
-            }
-        }
+        startConversationsCollection { chatRepository.getConversations() }
         viewModelScope.launch {
             providerRepository.getProviders().collectLatest { providers ->
                 _uiState.update { it.copy(hasProviders = providers.isNotEmpty()) }
+            }
+        }
+        viewModelScope.launch {
+            folderRepository.getFolders().collectLatest { folders ->
+                _uiState.update { it.copy(folders = folders) }
+            }
+        }
+        viewModelScope.launch {
+            tagRepository.getTags().collectLatest { tags ->
+                _uiState.update { it.copy(tags = tags) }
+            }
+        }
+        viewModelScope.launch {
+            templateRepository.getTemplates().collectLatest { templates ->
+                _uiState.update { it.copy(templates = templates) }
+            }
+        }
+    }
+
+    private fun startConversationsCollection(flowProvider: () -> kotlinx.coroutines.flow.Flow<List<Conversation>>) {
+        conversationsCollectionJob?.cancel()
+        conversationsCollectionJob = viewModelScope.launch {
+            flowProvider().collectLatest { conversations ->
+                _uiState.update { it.copy(conversations = conversations) }
             }
         }
     }
@@ -109,7 +155,10 @@ class ChatViewModel @Inject constructor(
                         error = null,
                         attachedImageUris = emptyList(),
                         editingMessageId = null,
-                        navigateToConversationId = null
+                        navigateToConversationId = null,
+                        messageSearchQuery = "",
+                        messageSearchResults = emptyList(),
+                        isMessageSearchActive = false
                     )
                 }
             } else {
@@ -133,7 +182,10 @@ class ChatViewModel @Inject constructor(
                             error = null,
                             attachedImageUris = emptyList(),
                             editingMessageId = null,
-                            navigateToConversationId = null
+                            navigateToConversationId = null,
+                            messageSearchQuery = "",
+                            messageSearchResults = emptyList(),
+                            isMessageSearchActive = false
                         )
                     }
                 }
@@ -392,7 +444,10 @@ class ChatViewModel @Inject constructor(
                 error = null,
                 attachedImageUris = emptyList(),
                 editingMessageId = null,
-                navigateToConversationId = null
+                navigateToConversationId = null,
+                messageSearchQuery = "",
+                messageSearchResults = emptyList(),
+                isMessageSearchActive = false
             )
         }
     }
@@ -490,6 +545,251 @@ class ChatViewModel @Inject constructor(
 
     fun clearNavigation() {
         _uiState.update { it.copy(navigateToConversationId = null) }
+    }
+
+    // --- Phase 3: Folders ---
+
+    fun selectFolder(folderId: Long?) {
+        _uiState.update { it.copy(currentFolderId = folderId, showArchived = false, searchQuery = "", isSearchActive = false) }
+        if (folderId == null) {
+            startConversationsCollection { chatRepository.getConversations() }
+        } else {
+            startConversationsCollection { chatRepository.getConversationsByFolder(folderId) }
+        }
+    }
+
+    fun showArchived(show: Boolean) {
+        _uiState.update { it.copy(showArchived = show, currentFolderId = null, searchQuery = "", isSearchActive = false) }
+        if (show) {
+            startConversationsCollection { chatRepository.getArchivedConversations() }
+        } else {
+            startConversationsCollection { chatRepository.getConversations() }
+        }
+    }
+
+    fun createFolder(name: String) {
+        viewModelScope.launch {
+            folderRepository.createFolder(name)
+        }
+    }
+
+    fun renameFolder(id: Long, name: String) {
+        viewModelScope.launch {
+            folderRepository.updateFolder(id, name)
+        }
+    }
+
+    fun deleteFolder(id: Long) {
+        viewModelScope.launch {
+            folderRepository.deleteFolder(id)
+        }
+    }
+
+    fun moveConversationToFolder(conversationId: Long, folderId: Long?) {
+        viewModelScope.launch {
+            chatRepository.moveToFolder(conversationId, folderId)
+        }
+    }
+
+    // --- Phase 3: Tags ---
+
+    fun createTag(name: String, colorHex: String) {
+        viewModelScope.launch {
+            tagRepository.createTag(name, colorHex)
+        }
+    }
+
+    fun deleteTag(id: Long) {
+        viewModelScope.launch {
+            tagRepository.deleteTag(id)
+        }
+    }
+
+    fun addTagToConversation(conversationId: Long, tagId: Long) {
+        viewModelScope.launch {
+            tagRepository.addTagToConversation(conversationId, tagId)
+        }
+    }
+
+    fun removeTagFromConversation(conversationId: Long, tagId: Long) {
+        viewModelScope.launch {
+            tagRepository.removeTagFromConversation(conversationId, tagId)
+        }
+    }
+
+    // --- Phase 3: Archive ---
+
+    fun archiveConversation(id: Long) {
+        viewModelScope.launch {
+            chatRepository.archiveConversation(id)
+            if (_uiState.value.currentConversationId == id) {
+                startNewChat()
+            }
+        }
+    }
+
+    fun unarchiveConversation(id: Long) {
+        viewModelScope.launch {
+            chatRepository.unarchiveConversation(id)
+        }
+    }
+
+    // --- Phase 3: Bulk Operations ---
+
+    fun toggleBulkSelectionMode() {
+        _uiState.update {
+            it.copy(
+                isBulkSelectionMode = !it.isBulkSelectionMode,
+                selectedConversationIds = emptySet()
+            )
+        }
+    }
+
+    fun toggleConversationSelection(id: Long) {
+        _uiState.update { state ->
+            val newSet = if (state.selectedConversationIds.contains(id)) {
+                state.selectedConversationIds - id
+            } else {
+                state.selectedConversationIds + id
+            }
+            state.copy(selectedConversationIds = newSet)
+        }
+    }
+
+    fun selectAllConversations() {
+        _uiState.update { state ->
+            state.copy(selectedConversationIds = state.conversations.map { it.id }.toSet())
+        }
+    }
+
+    fun clearSelection() {
+        _uiState.update { it.copy(selectedConversationIds = emptySet()) }
+    }
+
+    fun archiveSelectedConversations() {
+        viewModelScope.launch {
+            val ids = _uiState.value.selectedConversationIds.toList()
+            if (ids.isNotEmpty()) {
+                chatRepository.archiveConversations(ids)
+                _uiState.update {
+                    it.copy(
+                        selectedConversationIds = emptySet(),
+                        isBulkSelectionMode = false
+                    )
+                }
+            }
+        }
+    }
+
+    fun deleteSelectedConversations() {
+        viewModelScope.launch {
+            val ids = _uiState.value.selectedConversationIds.toList()
+            if (ids.isNotEmpty()) {
+                chatRepository.deleteConversations(ids)
+                _uiState.update {
+                    it.copy(
+                        selectedConversationIds = emptySet(),
+                        isBulkSelectionMode = false
+                    )
+                }
+            }
+        }
+    }
+
+    fun moveSelectedToFolder(folderId: Long?) {
+        viewModelScope.launch {
+            val ids = _uiState.value.selectedConversationIds.toList()
+            if (ids.isNotEmpty()) {
+                chatRepository.moveToFolder(ids, folderId)
+                _uiState.update {
+                    it.copy(
+                        selectedConversationIds = emptySet(),
+                        isBulkSelectionMode = false
+                    )
+                }
+            }
+        }
+    }
+
+    // --- Phase 3: Search ---
+
+    fun setSearchQuery(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+        if (query.isBlank()) {
+            startConversationsCollection { chatRepository.getConversations() }
+            _uiState.update { it.copy(isSearchActive = false) }
+            return
+        }
+        startConversationsCollection { chatRepository.searchConversations(query) }
+        _uiState.update { it.copy(isSearchActive = true) }
+    }
+
+    fun clearSearch() {
+        _uiState.update { it.copy(searchQuery = "", isSearchActive = false) }
+        startConversationsCollection { chatRepository.getConversations() }
+    }
+
+    // --- Phase 3: Message Search ---
+
+    fun setMessageSearchQuery(query: String) {
+        _uiState.update { it.copy(messageSearchQuery = query) }
+        if (query.isBlank()) {
+            _uiState.update { it.copy(messageSearchResults = emptyList(), isMessageSearchActive = false) }
+            return
+        }
+        val conversationId = _uiState.value.currentConversationId
+        if (conversationId == 0L) return
+        viewModelScope.launch {
+            messageRepository.searchMessages(conversationId, query).collectLatest { messages ->
+                _uiState.update { it.copy(messageSearchResults = messages, isMessageSearchActive = true) }
+            }
+        }
+    }
+
+    fun clearMessageSearch() {
+        _uiState.update { it.copy(messageSearchQuery = "", messageSearchResults = emptyList(), isMessageSearchActive = false) }
+    }
+
+    // --- Phase 3: Templates ---
+
+    fun createTemplate(name: String, content: String) {
+        viewModelScope.launch {
+            templateRepository.createTemplate(name, content)
+        }
+    }
+
+    fun deleteTemplate(id: Long) {
+        viewModelScope.launch {
+            templateRepository.deleteTemplate(id)
+        }
+    }
+
+    fun applyTemplate(content: String) {
+        _uiState.update { it.copy(inputText = content) }
+    }
+
+    // --- Phase 3: Export ---
+
+    fun exportConversationToMarkdown() {
+        val conversationId = _uiState.value.currentConversationId
+        if (conversationId == 0L) return
+        viewModelScope.launch {
+            val result = backupRepository.exportConversationToMarkdown(conversationId)
+            _uiState.update { it.copy(exportResult = result) }
+        }
+    }
+
+    fun exportConversationToJson() {
+        val conversationId = _uiState.value.currentConversationId
+        if (conversationId == 0L) return
+        viewModelScope.launch {
+            val result = backupRepository.exportConversationToJson(conversationId)
+            _uiState.update { it.copy(exportResult = result) }
+        }
+    }
+
+    fun clearExportResult() {
+        _uiState.update { it.copy(exportResult = null) }
     }
 
     private fun pathToBase64(path: String): String? {

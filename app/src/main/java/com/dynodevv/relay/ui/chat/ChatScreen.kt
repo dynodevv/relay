@@ -1,14 +1,18 @@
 package com.dynodevv.relay.ui.chat
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,8 +30,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -40,9 +44,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -62,20 +65,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.dynodevv.relay.R
-import com.dynodevv.relay.domain.model.Conversation
+import com.dynodevv.relay.domain.model.Message
 import com.dynodevv.relay.domain.model.MessageRole
+import com.dynodevv.relay.ui.chat.components.ChatNavigationDrawer
 import com.dynodevv.relay.ui.chat.components.MessageBubble
 import com.dynodevv.relay.ui.chat.components.MessageInput
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,6 +92,7 @@ fun ChatScreen(
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val listState = rememberLazyListState()
     val screenWidthPx = with(LocalDensity.current) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
+    val context = LocalContext.current
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
@@ -104,6 +106,10 @@ fun ChatScreen(
     var messageToDelete by remember { mutableStateOf<Long?>(null) }
     var showEditConfirm by remember { mutableStateOf(false) }
     var showModelMenu by remember { mutableStateOf(false) }
+    var showMessageSearch by remember { mutableStateOf(false) }
+    var showTemplates by remember { mutableStateOf(false) }
+    var showExportResult by remember { mutableStateOf<String?>(null) }
+    var showSaveTemplateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(conversationId) {
         viewModel.loadConversation(conversationId)
@@ -122,13 +128,30 @@ fun ChatScreen(
         }
     }
 
+    LaunchedEffect(uiState.exportResult) {
+        uiState.exportResult?.let { result ->
+            if (result.isNotEmpty()) {
+                showExportResult = result
+            }
+            viewModel.clearExportResult()
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = true,
         drawerContent = {
             ChatNavigationDrawer(
                 conversations = uiState.conversations,
+                folders = uiState.folders,
+                tags = uiState.tags,
                 currentConversationId = uiState.currentConversationId,
+                currentFolderId = uiState.currentFolderId,
+                showArchived = uiState.showArchived,
+                searchQuery = uiState.searchQuery,
+                isSearchActive = uiState.isSearchActive,
+                isBulkSelectionMode = uiState.isBulkSelectionMode,
+                selectedConversationIds = uiState.selectedConversationIds,
                 onConversationClick = { id ->
                     scope.launch { drawerState.close() }
                     onNavigateToChat(id)
@@ -137,16 +160,34 @@ fun ChatScreen(
                     scope.launch { drawerState.close() }
                     viewModel.startNewChat()
                 },
-                onRenameConversation = { id, title ->
-                    viewModel.renameConversation(id, title)
-                },
-                onDeleteConversation = { id ->
-                    viewModel.deleteConversation(id)
-                },
+                onRenameConversation = { id, title -> viewModel.renameConversation(id, title) },
+                onDeleteConversation = { id -> viewModel.deleteConversation(id) },
+                onArchiveConversation = { id -> viewModel.archiveConversation(id) },
+                onUnarchiveConversation = { id -> viewModel.unarchiveConversation(id) },
                 onNavigateToSettings = {
                     scope.launch { drawerState.close() }
                     onNavigateToSettings()
-                }
+                },
+                onSelectFolder = { viewModel.selectFolder(it) },
+                onShowArchived = { viewModel.showArchived(it) },
+                onSearchQueryChange = { viewModel.setSearchQuery(it) },
+                onClearSearch = { viewModel.clearSearch() },
+                onToggleBulkSelectionMode = { viewModel.toggleBulkSelectionMode() },
+                onToggleConversationSelection = { viewModel.toggleConversationSelection(it) },
+                onSelectAll = { viewModel.selectAllConversations() },
+                onClearSelection = { viewModel.clearSelection() },
+                onArchiveSelected = { viewModel.archiveSelectedConversations() },
+                onDeleteSelected = { viewModel.deleteSelectedConversations() },
+                onMoveToFolder = { viewModel.moveSelectedToFolder(it) },
+                onCreateFolder = { viewModel.createFolder(it) },
+                onRenameFolder = { id, name -> viewModel.renameFolder(id, name) },
+                onDeleteFolder = { viewModel.deleteFolder(it) },
+                onAddTagToConversation = { convId, tagId -> viewModel.addTagToConversation(convId, tagId) },
+                onRemoveTagFromConversation = { convId, tagId -> viewModel.removeTagFromConversation(convId, tagId) },
+                onCreateTag = { name, color -> viewModel.createTag(name, color) },
+                onDeleteTag = { viewModel.deleteTag(it) },
+                onExportMarkdown = { viewModel.exportConversationToMarkdown() },
+                onExportJson = { viewModel.exportConversationToJson() }
             )
         }
     ) {
@@ -212,6 +253,11 @@ fun ChatScreen(
                         }
                     },
                     actions = {
+                        if (uiState.currentConversationId != 0L) {
+                            IconButton(onClick = { showMessageSearch = true }) {
+                                Icon(Icons.Default.Search, contentDescription = "Search messages")
+                            }
+                        }
                         IconButton(onClick = { viewModel.startNewChat() }) {
                             Icon(Icons.Default.Add, contentDescription = "New chat")
                         }
@@ -223,27 +269,56 @@ fun ChatScreen(
                 )
             },
             bottomBar = {
-                MessageInput(
-                    value = uiState.inputText,
-                    onValueChange = viewModel::onInputChange,
-                    onSend = {
-                        if (uiState.editingMessageId != null) {
-                            showEditConfirm = true
-                        } else {
-                            viewModel.sendMessage()
+                Column {
+                    // Template quick-access bar
+                    if (uiState.templates.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            uiState.templates.take(3).forEach { template ->
+                                Button(
+                                    onClick = { viewModel.applyTemplate(template.content) },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                ) {
+                                    Text(template.name, style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                            if (uiState.templates.size > 3) {
+                                IconButton(onClick = { showTemplates = true }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = "More templates")
+                                }
+                            }
+                            IconButton(onClick = { showSaveTemplateDialog = true }, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Default.Add, contentDescription = "Save as template")
+                            }
                         }
-                    },
-                    onStop = { viewModel.stopGeneration() },
-                    onAttach = { imagePicker.launch("image/*") },
-                    onCancelEdit = viewModel::cancelEditing,
-                    onRemoveImage = viewModel::removeAttachedImage,
-                    onClearImages = viewModel::clearAttachedImages,
-                    isLoading = uiState.isLoading,
-                    supportsAttachments = uiState.currentModel?.supportsImageInput == true,
-                    attachedImageUris = uiState.attachedImageUris,
-                    isEditing = uiState.editingMessageId != null,
-                    modifier = Modifier.imePadding()
-                )
+                    }
+
+                    MessageInput(
+                        value = uiState.inputText,
+                        onValueChange = viewModel::onInputChange,
+                        onSend = {
+                            if (uiState.editingMessageId != null) {
+                                showEditConfirm = true
+                            } else {
+                                viewModel.sendMessage()
+                            }
+                        },
+                        onStop = { viewModel.stopGeneration() },
+                        onAttach = { imagePicker.launch("image/*") },
+                        onCancelEdit = viewModel::cancelEditing,
+                        onRemoveImage = viewModel::removeAttachedImage,
+                        onClearImages = viewModel::clearAttachedImages,
+                        isLoading = uiState.isLoading,
+                        supportsAttachments = uiState.currentModel?.supportsImageInput == true,
+                        attachedImageUris = uiState.attachedImageUris,
+                        isEditing = uiState.editingMessageId != null,
+                        modifier = Modifier.imePadding()
+                    )
+                }
             }
         ) { padding ->
             Column(
@@ -317,9 +392,12 @@ fun ChatScreen(
                             reverseLayout = true
                         ) {
                             items(
-                                items = uiState.messages.reversed(),
+                                items = if (uiState.isMessageSearchActive) uiState.messageSearchResults else uiState.messages,
                                 key = { it.id }
                             ) { message ->
+                                val isSearchResult = uiState.isMessageSearchActive &&
+                                        uiState.messageSearchQuery.isNotBlank() &&
+                                        message.content.contains(uiState.messageSearchQuery, ignoreCase = true)
                                 MessageBubble(
                                     message = message,
                                     onDelete = { messageToDelete = message.id },
@@ -332,7 +410,8 @@ fun ChatScreen(
                                         if (message.role is MessageRole.User) {
                                             viewModel.startEditingMessage(message.id)
                                         }
-                                    }
+                                    },
+                                    highlightQuery = if (isSearchResult) uiState.messageSearchQuery else null
                                 )
                             }
                         }
@@ -369,7 +448,7 @@ fun ChatScreen(
         )
     }
 
-    // Edit confirmation dialog (shown when sending an edit)
+    // Edit confirmation dialog
     if (showEditConfirm && uiState.editingMessageId != null) {
         AlertDialog(
             onDismissRequest = { showEditConfirm = false },
@@ -390,6 +469,173 @@ fun ChatScreen(
             dismissButton = {
                 TextButton(onClick = { showEditConfirm = false }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Message search dialog
+    if (showMessageSearch) {
+        AlertDialog(
+            onDismissRequest = {
+                showMessageSearch = false
+                viewModel.clearMessageSearch()
+            },
+            title = { Text("Search Messages") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = uiState.messageSearchQuery,
+                        onValueChange = { viewModel.setMessageSearchQuery(it) },
+                        placeholder = { Text("Search in this conversation...") },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.large,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (uiState.isMessageSearchActive) {
+                        Text(
+                            "${uiState.messageSearchResults.size} results",
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showMessageSearch = false
+                }) {
+                    Text("Close")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    viewModel.clearMessageSearch()
+                }) {
+                    Text("Clear")
+                }
+            }
+        )
+    }
+
+    // Templates picker dialog
+    if (showTemplates) {
+        AlertDialog(
+            onDismissRequest = { showTemplates = false },
+            title = { Text("Templates") },
+            text = {
+                LazyColumn {
+                    items(uiState.templates, key = { it.id }) { template ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                template.name,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Row {
+                                TextButton(onClick = {
+                                    viewModel.applyTemplate(template.content)
+                                    showTemplates = false
+                                }) {
+                                    Text("Apply")
+                                }
+                                IconButton(onClick = { viewModel.deleteTemplate(template.id) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showTemplates = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // Save as template dialog
+    if (showSaveTemplateDialog) {
+        var templateName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showSaveTemplateDialog = false },
+            title = { Text("Save as Template") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = templateName,
+                        onValueChange = { templateName = it },
+                        label = { Text("Template name") },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.large
+                    )
+                    if (uiState.inputText.isNotBlank()) {
+                        Text(
+                            "Content preview:",
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                        Text(
+                            uiState.inputText.take(100),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (templateName.isNotBlank() && uiState.inputText.isNotBlank()) {
+                            viewModel.createTemplate(templateName, uiState.inputText)
+                            showSaveTemplateDialog = false
+                        }
+                    },
+                    enabled = templateName.isNotBlank() && uiState.inputText.isNotBlank()
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSaveTemplateDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Export result dialog
+    showExportResult?.let { result ->
+        AlertDialog(
+            onDismissRequest = { showExportResult = null },
+            title = { Text("Export") },
+            text = {
+                Column {
+                    Text("Conversation exported. Copy to clipboard?")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Exported Chat", result))
+                    Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                    showExportResult = null
+                }) {
+                    Text("Copy")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExportResult = null }) {
+                    Text("Dismiss")
                 }
             }
         )
@@ -430,193 +676,4 @@ private fun EmptyState(onNavigateToSettings: () -> Unit) {
             }
         }
     }
-}
-
-@Composable
-private fun ChatNavigationDrawer(
-    conversations: List<Conversation>,
-    currentConversationId: Long,
-    onConversationClick: (Long) -> Unit,
-    onNewChat: () -> Unit,
-    onRenameConversation: (Long, String) -> Unit,
-    onDeleteConversation: (Long) -> Unit,
-    onNavigateToSettings: () -> Unit
-) {
-    val dateFormat = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault())
-    var conversationMenuId by remember { mutableStateOf<Long?>(null) }
-    var conversationToRename by remember { mutableStateOf<Conversation?>(null) }
-    var conversationToDelete by remember { mutableStateOf<Conversation?>(null) }
-
-    ModalDrawerSheet {
-        Spacer(Modifier.height(16.dp))
-
-        Text(
-            text = "Relay",
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-
-        NavigationDrawerItem(
-            label = { Text("New Chat") },
-            selected = false,
-            onClick = onNewChat,
-            icon = { Icon(Icons.Default.Add, contentDescription = null) }
-        )
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-        Text(
-            text = "Conversations",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-        )
-
-        val density = LocalDensity.current
-        LazyColumn {
-            items(conversations, key = { it.id }) { conversation ->
-                var conversationMenuOffset by remember { mutableStateOf(DpOffset.Zero) }
-                Box {
-                    NavigationDrawerItem(
-                        label = {
-                            Column {
-                                Text(
-                                    text = conversation.title,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = dateFormat.format(Date(conversation.updatedAt)),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        },
-                        selected = conversation.id == currentConversationId,
-                        onClick = { }
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .pointerInput(Unit) {
-                                detectTapGestures(
-                                    onTap = { onConversationClick(conversation.id) },
-                                    onLongPress = { offset ->
-                                        conversationMenuOffset = with(density) {
-                                            DpOffset(offset.x.toDp(), offset.y.toDp())
-                                        }
-                                        conversationMenuId = conversation.id
-                                    }
-                                )
-                            }
-                    )
-
-                    DropdownMenu(
-                        expanded = conversationMenuId == conversation.id,
-                        onDismissRequest = { conversationMenuId = null },
-                        offset = conversationMenuOffset
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Rename") },
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                            onClick = {
-                                conversationMenuId = null
-                                conversationToRename = conversation
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Delete") },
-                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
-                            onClick = {
-                                conversationMenuId = null
-                                conversationToDelete = conversation
-                            }
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.weight(1f))
-
-        HorizontalDivider()
-
-        NavigationDrawerItem(
-            label = { Text("Settings") },
-            selected = false,
-            onClick = onNavigateToSettings,
-            icon = { Icon(Icons.Default.Settings, contentDescription = null) }
-        )
-
-        Spacer(Modifier.height(16.dp))
-    }
-
-    conversationToRename?.let { conv ->
-        RenameDialog(
-            currentName = conv.title,
-            onDismiss = { conversationToRename = null },
-            onConfirm = { newName ->
-                onRenameConversation(conv.id, newName)
-                conversationToRename = null
-            }
-        )
-    }
-
-    conversationToDelete?.let { conv ->
-        AlertDialog(
-            onDismissRequest = { conversationToDelete = null },
-            title = { Text("Delete Conversation") },
-            text = { Text("Are you sure you want to delete \"${conv.title}\"?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDeleteConversation(conv.id)
-                    conversationToDelete = null
-                }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { conversationToDelete = null }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-}
-
-@Composable
-private fun RenameDialog(
-    currentName: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    var text by remember { mutableStateOf(currentName) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Rename Conversation") },
-        text = {
-            androidx.compose.material3.OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                label = { Text("Name") },
-                singleLine = true,
-                shape = MaterialTheme.shapes.large
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(text.trim()) },
-                enabled = text.trim().isNotBlank()
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
 }

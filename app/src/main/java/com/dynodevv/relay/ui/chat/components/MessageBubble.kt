@@ -80,7 +80,8 @@ fun MessageBubble(
     message: Message,
     onDelete: () -> Unit,
     onRegenerate: () -> Unit,
-    onEdit: () -> Unit = {}
+    onEdit: () -> Unit = {},
+    highlightQuery: String? = null
 ) {
     val isUser = message.role is MessageRole.User
     val clipboardManager = LocalClipboardManager.current
@@ -143,11 +144,16 @@ fun MessageBubble(
                                         }
                                         Spacer(modifier = Modifier.height(8.dp))
                                     }
-                                    Text(
-                                        text = message.content,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
+                                     val userText = if (highlightQuery != null) {
+                                         buildHighlightedText(message.content, highlightQuery)
+                                     } else {
+                                         AnnotatedString(message.content)
+                                     }
+                                     Text(
+                                         text = userText,
+                                         style = MaterialTheme.typography.bodyLarge,
+                                         color = MaterialTheme.colorScheme.onPrimaryContainer
+                                     )
                                 }
                             } else {
                                 if (message.isStreaming && message.content.isEmpty()) {
@@ -397,4 +403,27 @@ private fun SyntaxHighlightedCode(
             .horizontalScroll(rememberScrollState())
             .padding(LocalMarkdownPadding.current.codeBlock)
     )
+}
+
+@Composable
+private fun buildHighlightedText(content: String, query: String): AnnotatedString {
+    return buildAnnotatedString {
+        val lowerContent = content.lowercase()
+        val lowerQuery = query.lowercase()
+        var currentIndex = 0
+        while (currentIndex < content.length) {
+            val matchIndex = lowerContent.indexOf(lowerQuery, currentIndex)
+            if (matchIndex == -1) {
+                append(content.substring(currentIndex))
+                break
+            }
+            if (matchIndex > currentIndex) {
+                append(content.substring(currentIndex, matchIndex))
+            }
+            withStyle(SpanStyle(background = androidx.compose.ui.graphics.Color.Yellow.copy(alpha = 0.4f))) {
+                append(content.substring(matchIndex, matchIndex + query.length))
+            }
+            currentIndex = matchIndex + query.length
+        }
+    }
 }

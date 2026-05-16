@@ -39,4 +39,13 @@ interface MessageDao {
 
     @Query("DELETE FROM messages WHERE conversationId = :conversationId AND createdAt > (SELECT createdAt FROM messages WHERE id = :messageId)")
     suspend fun deleteMessagesAfter(conversationId: Long, messageId: Long)
+
+    @Query("SELECT * FROM messages WHERE conversationId = :conversationId AND content LIKE '%' || :query || '%' ORDER BY createdAt ASC")
+    fun searchMessages(conversationId: Long, query: String): Flow<List<MessageEntity>>
+
+    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY createdAt ASC")
+    suspend fun getAllMessagesForConversation(conversationId: Long): List<MessageEntity>
+
+    @Query("SELECT * FROM messages")
+    suspend fun getAllMessages(): List<MessageEntity>
 }

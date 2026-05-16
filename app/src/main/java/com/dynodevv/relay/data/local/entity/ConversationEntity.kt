@@ -1,9 +1,24 @@
 package com.dynodevv.relay.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
-@Entity(tableName = "conversations")
+@Serializable
+@Entity(
+    tableName = "conversations",
+    foreignKeys = [
+        ForeignKey(
+            entity = FolderEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["folderId"],
+            onDelete = ForeignKey.SET_NULL
+        )
+    ],
+    indices = [Index("folderId"), Index("isArchived")]
+)
 data class ConversationEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
@@ -12,5 +27,7 @@ data class ConversationEntity(
     val modelId: String,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    val systemPrompt: String? = null
+    val systemPrompt: String? = null,
+    val isArchived: Boolean = false,
+    val folderId: Long? = null
 )
