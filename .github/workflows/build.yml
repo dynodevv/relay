@@ -57,11 +57,21 @@ jobs:
 
     - name: Build Release APK
       env:
-        SIGNING_KEYSTORE_PATH: app/release.keystore
+        SIGNING_KEYSTORE_PATH: release.keystore
         SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
         SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
         SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
       run: ./gradlew assembleRelease --no-daemon
+
+    - name: Verify APK certificate
+      run: |
+        APK=$(ls app/build/outputs/apk/release/*.apk | head -n1)
+        echo "APK: $APK"
+        unzip -p "$APK" META-INF/*.RSA META-INF/*.DSA 2>/dev/null | head -c 1 >/dev/null && \
+        unzip -p "$APK" META-INF/*.RSA META-INF/*.DSA 2>/dev/null | keytool -printcert -verbose 2>/dev/null | head -20 || \
+        echo "No certificate found (APK may be unsigned or debug-signed)"
+        # Also print SHA-256 of cert for comparison between runs
+        unzip -p "$APK" META-INF/*.RSA META-INF/*.DSA 2>/dev/null | keytool -printcert -verbose 2>/dev/null | grep -i "SHA256:" | head -1 || echo "Could not extract SHA256 fingerprint"
 
     - name: Upload Release APK
       uses: actions/upload-artifact@v4
@@ -101,11 +111,18 @@ jobs:
 
     - name: Build Signed Release APK
       env:
-        SIGNING_KEYSTORE_PATH: app/release.keystore
+        SIGNING_KEYSTORE_PATH: release.keystore
         SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
         SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
         SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
       run: ./gradlew assembleRelease --no-daemon
+
+    - name: Verify APK certificate
+      run: |
+        APK=$(ls app/build/outputs/apk/release/*.apk | head -n1)
+        echo "APK: $APK"
+        unzip -p "$APK" META-INF/*.RSA META-INF/*.DSA 2>/dev/null | keytool -printcert -verbose 2>/dev/null | head -20 || echo "No certificate found"
+        unzip -p "$APK" META-INF/*.RSA META-INF/*.DSA 2>/dev/null | keytool -printcert -verbose 2>/dev/null | grep -i "SHA256:" | head -1 || echo "Could not extract SHA256 fingerprint"
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
