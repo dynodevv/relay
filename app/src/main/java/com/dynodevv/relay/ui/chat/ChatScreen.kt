@@ -36,6 +36,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -62,9 +63,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import com.dynodevv.relay.R
 import com.dynodevv.relay.domain.model.Conversation
 import com.dynodevv.relay.domain.model.MessageRole
 import com.dynodevv.relay.ui.chat.components.MessageBubble
@@ -264,6 +267,7 @@ fun ChatScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
+                        .imePadding()
                         .pointerInput(Unit) {
                             awaitEachGesture {
                                 val down = awaitFirstDown()
@@ -294,10 +298,17 @@ fun ChatScreen(
                                     if (!change.pressed) break
                                 }
                             }
-                        }
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
                     if (!uiState.hasProviders && uiState.messages.isEmpty()) {
                         EmptyState(onNavigateToSettings = onNavigateToSettings)
+                    } else if (uiState.hasProviders && uiState.messages.isEmpty()) {
+                        Image(
+                            painter = painterResource(id = R.drawable.relay_app_icon),
+                            contentDescription = "Relay",
+                            modifier = Modifier.size(120.dp)
+                        )
                     } else {
                         LazyColumn(
                             state = listState,
